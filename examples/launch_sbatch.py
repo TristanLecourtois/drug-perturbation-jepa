@@ -72,6 +72,13 @@ from eb_jepa.training_utils import (
     load_config,
 )
 
+# Compute-node interpreter. The login node that submits jobs is x86_64, but the GB200
+# compute nodes are aarch64 — submitit must run the pickled job with the aarch64 venv
+# python, else it execve's the x86_64 interpreter on the compute node ("Exec format error").
+_WORK = os.environ.get("EBJEPA_WORK", f"/lustre/work/pdl17890/{os.environ.get('USER', '')}")
+_COMPUTE_ARCH = os.environ.get("EBJEPA_COMPUTE_ARCH", "aarch64")
+COMPUTE_PYTHON = f"{_WORK}/venvs/eb_jepa_{_COMPUTE_ARCH}/bin/python3"
+
 # Default SLURM parameters (target the HTW cluster; GB200 / Grace-Blackwell nodes).
 # Every value is cluster-specific and overridable without editing this file: via the
 # EBJEPA_SLURM_* env vars (env.sh sets them and auto-detects account/QOS per user) or the
@@ -80,7 +87,7 @@ from eb_jepa.training_utils import (
 # them when set), so SLURM falls back to your own defaults and a missing/foreign QOS
 # never blocks submission.
 SLURM_DEFAULTS = {
-    "mem_per_gpu": os.environ.get("EBJEPA_SLURM_MEM", "220G"),
+    "mem_per_gpu": os.environ.get("EBJEPA_SLURM_MEM", ""),
     "cpus_per_task": int(os.environ.get("EBJEPA_SLURM_CPUS", 8)),
     "timeout_min": int(os.environ.get("EBJEPA_SLURM_TIME_MIN", 120)),
     "partition": os.environ.get("EBJEPA_SLURM_PARTITION", "defq"),
@@ -157,6 +164,10 @@ def make_executor(
 ) -> submitit.AutoExecutor:
     """Create a submitit executor with standard SLURM parameters."""
     executor = submitit.AutoExecutor(folder=folder, slurm_max_num_timeout=20)
+    # Run the pickled job with the COMPUTE-arch interpreter. The login node that submits is
+    # x86_64 but compute nodes are aarch64 (GB200); without this submitit would execve the
+    # x86_64 python on the compute node and fail with "Exec format error".
+    executor._executor.python = COMPUTE_PYTHON
 
     # account / qos are optional: only sent when set, so SLURM uses the user's defaults
     # otherwise (and a missing or cluster-specific QOS never blocks submission).
@@ -172,12 +183,16 @@ def make_executor(
 
     params = {
         "name": job_name,
-        "slurm_mem_per_gpu": SLURM_DEFAULTS["mem_per_gpu"],
         "cpus_per_task": SLURM_DEFAULTS["cpus_per_task"],
         "timeout_min": SLURM_DEFAULTS["timeout_min"],
         "slurm_partition": SLURM_DEFAULTS["partition"],
         "slurm_additional_parameters": slurm_extra,
     }
+    # Memory request is OPTIONAL: DALIA (this HTW cluster) forbids --mem/--mem-per-gpu and
+    # allocates memory proportional to the requested cores, so we omit it by default.
+    # Set EBJEPA_SLURM_MEM (e.g. 220G) only on a cluster that requires an explicit request.
+    if SLURM_DEFAULTS["mem_per_gpu"]:
+        params["slurm_mem_per_gpu"] = SLURM_DEFAULTS["mem_per_gpu"]
 
     if array_parallelism is not None:
         params["slurm_array_parallelism"] = array_parallelism

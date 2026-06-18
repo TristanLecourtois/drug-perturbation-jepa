@@ -51,10 +51,10 @@ export EBJEPA_SLURM_PARTITION=${EBJEPA_SLURM_PARTITION:-defq}
 export EBJEPA_SLURM_GPUS=${EBJEPA_SLURM_GPUS:-1}
 export EBJEPA_SLURM_CPUS=${EBJEPA_SLURM_CPUS:-8}
 export EBJEPA_SLURM_TIME_MIN=${EBJEPA_SLURM_TIME_MIN:-120}
-# GB200 nodes carry large Grace LPDDR (~480 GB per superchip, ~240 GB/GPU). Request a
-# generous slice per GPU; lower it with `scontrol show node <node>` (RealMemory) if jobs
-# stay PENDING on memory.
-export EBJEPA_SLURM_MEM=${EBJEPA_SLURM_MEM:-220G}
+# Memory request. EMPTY by default: the HTW DALIA scheduler FORBIDS --mem/--mem-per-gpu
+# (it rejects the job) and allocates memory proportional to the requested cores. Only set
+# this (e.g. 220G) on a different cluster that requires an explicit per-GPU memory request.
+export EBJEPA_SLURM_MEM=${EBJEPA_SLURM_MEM:-}
 
 # Per-user SLURM account & QOS.
 # Resolution order: value already in the environment  >  the persisted per-user file

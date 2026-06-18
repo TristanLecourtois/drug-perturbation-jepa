@@ -38,7 +38,11 @@ class FinTimeDataset(torch.utils.data.Dataset):
             raise FileNotFoundError(
                 f"{xp} not found — generate it once with examples/fintime/prepare.py")
         self.X = np.load(xp, mmap_mode="r")           # [N, C, T] float32
-        self.meta = np.load(mp, allow_pickle=True)
+        # Materialize labels into memory: a lazily-loaded .npz is a shared zip handle
+        # and concurrent reads from forked DataLoader workers corrupt it (BadZipFile).
+        meta = np.load(mp, allow_pickle=True)
+        self._y_dir = np.asarray(meta["y_direction"], dtype=np.int64)
+        self._y_ret = np.asarray(meta["y_return"], dtype=np.float32)
         self._rng = np.random.default_rng()
 
     def __len__(self):
@@ -57,8 +61,7 @@ class FinTimeDataset(torch.utils.data.Dataset):
     def __getitem__(self, i):
         x = np.array(self.X[i], dtype=np.float32)     # copy (memmap is read-only)
         if self.cfg.mode == "supervised":
-            y = self.meta["y_direction"][i] if self.cfg.target == "direction" \
-                else self.meta["y_return"][i]
+            y = self._y_dir[i] if self.cfg.target == "direction" else self._y_ret[i]
             return torch.from_numpy(x), y
         # SSL: one window (predictive JEPA) — for a two-view objective return
         # two augmented copies instead (see the # TODO in examples/fintime/main.py).
