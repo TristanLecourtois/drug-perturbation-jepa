@@ -17,9 +17,18 @@ data:
   env_name: two_rooms
   # Training-specific overrides (base config in eb_jepa/datasets/two_rooms/data_config.yaml)
   batch_size: 384
-  num_workers: 16
+  num_workers: 4          # val_loader only — train data is generated on the GPU stream
   pin_mem: true
-  persistent_workers: true
+  persistent_workers: false
+  # GB200-optimal: generate trajectories on a dedicated CUDA stream (no CPU bottleneck,
+  # the Blackwell GPU never starves). Switch to `mode: online` (CPU per-batch) on a
+  # machine without a strong GPU. See cfgs/.../data/{online,stream_cpu,offline}.yaml.
+  pipeline:
+    mode: stream
+    backend: gpu
+    chunk_size: 3840
+    gen_batch_size: null
+    dtype: bfloat16
 training:
   use_amp: true
   dtype: bfloat16
