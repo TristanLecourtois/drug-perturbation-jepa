@@ -478,18 +478,18 @@ loop, and the JEPA output formats; if it passes, your environment is sane.
 \subsection{On the hackathon cluster (DALIA, B200)}
 \label{sec:cluster}
 
-\textbf{Repo + venv.} Work inside the shared project space \code{/lustre/work/pdl17890/}
+\textbf{Repo + venv.} Work inside the shared project space \code{/lustre/work/vivatech-<team>/}
 --- \emph{not} your \code{\$HOME}, whose inode quota blocks \code{git}. The \code{uv}
 virtualenv is \emph{architecture-specific} (login nodes are \code{x86\_64}, compute
 nodes are \code{aarch64}), so rather than activating a single \code{.venv}, source the
 provided \file{env.sh}: it selects an arch-specific \code{UV\_PROJECT\_ENVIRONMENT},
 cache, and \code{uv} binary, plus \code{EBJEPA\_CKPTS}.
 \begin{lstlisting}[style=bash]
-cd /lustre/work/pdl17890/<you>/eb_jepa
+cd /lustre/work/vivatech-<team>/<you>/eb_jepa
 source env.sh    # -> venvs/eb_jepa_{x86_64|aarch64}; then `uv pip install ...` as needed
 \end{lstlisting}
 
-\textbf{SLURM.} Submit with \code{--account=pdl17890 --partition=defq --gres=gpu:1};
+\textbf{SLURM.} Submit with \code{--account=vivatech-<team> --partition=defq --gres=gpu:1};
 exclude the frequently-OOM node with \code{--exclude=dalianvl03}. The cluster is
 offline: set \code{WANDB\_DISABLED=true} \emph{and} put \code{log\_wandb: false} in
 the config --- a CLI \code{--logging.log\_wandb=false} is parsed as the string
@@ -560,7 +560,7 @@ flags: \code{--single} (one dev job), \code{--sweep NAME} (name your run group),
 \begin{gotchabox}
 The launcher's default SLURM settings (partition, account, memory) at the top of
 \file{examples/launch\_sbatch.py} point at the original authors' cluster. On the
-hackathon cluster use \code{--account=pdl17890 --partition=defq} (and
+hackathon cluster use \code{--account=vivatech-<team> --partition=defq} (and
 \code{--exclude=dalianvl03}), as in \cref{sec:cluster}. Do not burn an hour
 debugging a queue rejection; ask. See \cref{sec:logistics}.
 \end{gotchabox}

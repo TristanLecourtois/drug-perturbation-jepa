@@ -25,7 +25,7 @@ The setup script will:
 * Copy the repository to:
 
   ```text
-  /lustre/work/pdl17890/$USER/eb_jepa
+  /lustre/work/vivatech-<team>/$USER/eb_jepa
   ```
 
 * Configure the project in that directory.
@@ -41,7 +41,7 @@ The setup script will:
 The pointer `README` gives you the exact path. By default, run:
 
 ```bash
-cd /lustre/work/pdl17890/$USER/eb_jepa
+cd /lustre/work/vivatech-<team>/$USER/eb_jepa
 ```
 
 ### 3. Make the Environment Persistent and Verify the Setup
@@ -109,7 +109,7 @@ You do not need to clone the repository directly into the correct directory: `se
 However, if you experience issues with the automatic relocation, clone the repository directly into your work directory:
 
 ```bash
-cd /lustre/work/pdl17890/$USER
+cd /lustre/work/vivatech-<team>/$USER
 
 git clone <YOUR_GROUP_REPOSITORY_URL> eb_jepa
 cd eb_jepa
@@ -121,7 +121,7 @@ bash setup.sh
 If the repository is no longer present in the directory where you initially cloned it, check:
 
 ```bash
-cd /lustre/work/pdl17890/$USER/eb_jepa
+cd /lustre/work/vivatech-<team>/$USER/eb_jepa
 ```
 
 This relocation is intentional and is required to avoid exceeding the home-directory quota.
