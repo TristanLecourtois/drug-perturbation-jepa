@@ -343,6 +343,83 @@ class VICRegLoss(nn.Module):
 
 
 ######################################################
+# Microbiome-specific terms (biological-data losses for the microbiome world model)
+
+
+class AlphaDiversityLoss(nn.Module):
+    """Diversity-preservation term (microbiome-specific, option 2).
+
+    A linear head must recover a community's alpha-diversity (e.g. Shannon index)
+    from its latent state z. If diversity is linearly decodable from z, then the
+    encoder is forced to *keep* it, and because the predictor operates in this
+    same latent space, the imagined future communities preserve ecological
+    diversity structure instead of washing it out -- the failure mode of
+    predicting in a collapsed/abundance-only latent.
+
+    forward(state, div_target):
+        state:      [B, D, T, 1, 1]  latent states (encoder/predictor output)
+        div_target: [B, T]           ground-truth alpha-diversity per timestep
+    returns scalar MSE.
+    """
+
+    def __init__(self, state_dim):
+        super().__init__()
+        self.head = nn.Linear(state_dim, 1)
+
+    def forward(self, state, div_target):
+        b, d, t = state.shape[0], state.shape[1], state.shape[2]
+        z = state[..., 0, 0].permute(0, 2, 1).reshape(b * t, d)  # [B*T, D]
+        pred = self.head(z).squeeze(-1)  # [B*T]
+        target = div_target.reshape(b * t).to(pred.dtype)
+        return F.mse_loss(pred, target)
+
+
+class PhyloDispersionLoss(nn.Module):
+    """Soft-UniFrac structure preservation (microbiome-specific, option 3).
+
+    Pairwise distances in latent space should mirror pairwise PHYLOGENETIC
+    dissimilarities between communities. We avoid needing an explicit tree:
+    each community's phylogenetic descriptor is its abundance-weighted mean
+    sequence (ProkBERT) embedding -- communities dominated by sequence-similar
+    (i.e. phylogenetically related) taxa get similar descriptors, a tree-free
+    soft-UniFrac surrogate. The loss matches the (scale-normalized) latent and
+    phylo distance matrices, so the JEPA latent geometry respects microbial
+    phylogeny rather than arbitrary correlations.
+
+    forward(state, phylo):
+        state: [B, D, T, 1, 1]  latent states
+        phylo: [B, T, P]        per-community phylogenetic descriptor
+    returns scalar MSE between scale-normalized cosine-distance matrices.
+    """
+
+    def __init__(self, detach_target=True, max_samples=512):
+        super().__init__()
+        self.detach_target = detach_target
+        self.max_samples = max_samples
+
+    @staticmethod
+    def _pairwise_cosine_dist(x):
+        x = F.normalize(x, dim=-1)
+        return 1.0 - (x @ x.t())  # [M, M]
+
+    def forward(self, state, phylo):
+        b, d, t = state.shape[0], state.shape[1], state.shape[2]
+        z = state[..., 0, 0].permute(0, 2, 1).reshape(b * t, d)  # [M, D]
+        p = phylo.reshape(b * t, phylo.shape[-1])  # [M, P]
+        m = z.shape[0]
+        if m > self.max_samples:
+            idx = torch.randperm(m, device=z.device)[: self.max_samples]
+            z, p = z[idx], p[idx]
+        dz = self._pairwise_cosine_dist(z)
+        dp = self._pairwise_cosine_dist(p)
+        if self.detach_target:
+            dp = dp.detach()
+        dz = dz / (dz.mean() + 1e-6)  # compare structure, not absolute scale
+        dp = dp / (dp.mean() + 1e-6)
+        return F.mse_loss(dz, dp)
+
+
+######################################################
 # BCS (Batched Characteristic Slicing) loss for SIGReg
 
 

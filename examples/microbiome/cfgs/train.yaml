@@ -1,0 +1,35 @@
+# Microbiome-JEPA: action-conditioned world model for gut bacterial communities.
+meta:
+  seed: 0
+
+data:
+  cache_path: eb_jepa/datasets/microbiome/cache.pt
+  n_window: 6          # T timepoints per window
+  n_max: 64            # OTU slots per community (top-abundance kept)
+  val_fraction: 0.2
+  batch_size: 64
+  num_workers: 0
+
+model:
+  emb_dim: 384         # ProkBERT sequence-embedding dim (input token dim)
+  henc: 256            # SetEncoder hidden width
+  dstc: 128            # latent state dim D
+  hpre: 256            # predictor / inverse-dynamics hidden width
+  nsteps: 4            # K autoregressive rollout steps (fights exposure bias)
+
+loss:
+  std_coeff: 10.0      # VICReg variance (anti-collapse) -- WATCH THIS
+  cov_coeff: 25.0      # VICReg covariance (decorrelation)
+  sim_coeff_t: 0.0     # temporal smoothness (OFF: it causes temporal collapse here
+                       #   -- it trains z_t≈z_{t+1}, making the no-change baseline trivial)
+  idm_coeff: 1.0       # inverse-dynamics (keeps latent action-relevant)
+  div_coeff: 1.0       # AlphaDiversityLoss   (microbiome-specific, option 2)
+  phylo_coeff: 1.0     # PhyloDispersionLoss  (soft-UniFrac, option 3)
+
+optim:
+  epochs: 50
+  lr: 1.0e-3
+  weight_decay: 1.0e-4
+
+logging:
+  log_wandb: false

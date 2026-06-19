@@ -409,6 +409,58 @@ class ImpalaEncoder(nn.Module):
         return features
 
 
+class SetEncoder(TemporalBatchMixin, nn.Module):
+    """Permutation-invariant, abundance-weighted DeepSets encoder for microbiome
+    communities (or any set of token embeddings with per-token weights).
+
+    A "community" at one timestep is a SET of OTUs. Each OTU is a token carrying
+    a fixed sequence embedding (e.g. ProkBERT) plus its (log) relative abundance.
+    The set is laid out as a [B, C, N, 1] image so it slots into the library's
+    5D [B, C, T, N, 1] convention via TemporalBatchMixin (T folded into batch).
+
+    Channel layout of the input:
+      - channels [0 : emb_dim]   -> per-OTU sequence embedding
+      - channel  [emb_dim]       -> log1p(relative abundance); 0 for padded slots
+
+    Permutation invariance comes from a per-token 1x1-conv MLP followed by an
+    abundance-weighted sum-pool over the N (token) axis. Padded OTUs carry
+    abundance 0, so they get zero pooling weight and are ignored for free.
+
+    Output: [B, out_d, 1, 1] per timestep -> [B, out_d, T, 1, 1] for a sequence,
+    matching what the (RNN) predictor and the VC/SquareLoss expect.
+    """
+
+    def __init__(self, emb_dim=384, h_d=256, out_d=128, abundance_weighted=True):
+        super().__init__()
+        self.emb_dim = emb_dim
+        self.abundance_weighted = abundance_weighted
+        in_d = emb_dim + 1  # embedding + log-abundance feature
+        self.token_mlp = nn.Sequential(
+            nn.Conv2d(in_d, h_d, kernel_size=1),
+            nn.GELU(),
+            nn.Conv2d(h_d, h_d, kernel_size=1),
+            nn.GELU(),
+        )
+        self.post = nn.Sequential(
+            nn.Conv2d(h_d, out_d, kernel_size=1),
+        )
+        self.out_dim = out_d
+        self.apply(init_module_weights)
+
+    def _forward(self, x):
+        # x: [B, emb_dim + 1, N, 1]
+        logab = x[:, self.emb_dim : self.emb_dim + 1]  # [B, 1, N, 1]
+        h = self.token_mlp(x)  # [B, h_d, N, 1]
+        if self.abundance_weighted:
+            w = F.relu(logab)  # padded slots (ab=0) -> weight 0
+        else:
+            w = (logab > 0).float()  # presence mask (unweighted mean over present)
+        w = w / (w.sum(dim=2, keepdim=True) + 1e-6)  # normalize over the token axis
+        z = (h * w).sum(dim=2, keepdim=True)  # [B, h_d, 1, 1] weighted pool
+        z = self.post(z)  # [B, out_d, 1, 1]
+        return z
+
+
 class RNNPredictor(nn.Module):
     """GRU-based predictor for single-step state propagation."""
 
