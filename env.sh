@@ -3,10 +3,26 @@
 # Usage: source env.sh
 # In SLURM scripts: source "$(dirname "$0")/../env.sh"  (adjust path as needed)
 
-# Your personal work directory — defaults to the project work partition under your
-# username. Override by setting EBJEPA_WORK before sourcing. WORK IS NOT YOUR HOME:
-# clone the repo and run everything from /lustre/work (the home quota blocks git/venvs).
-WORK=${EBJEPA_WORK:-/lustre/work/pdl17890/$USER}
+# --- Team / group detection (generic — no hardcoded team name) ----------------------
+# Each team has an allocation named "vivatech-<team>": it is your Unix group, your work
+# folder (/lustre/work/vivatech-<team>/$USER), AND your SLURM account. Your team is simply
+# the "vivatech-*" group you belong to, so we read it straight from your group membership —
+# no directory scan, no hardcoded team. Everything else (work dir, account) derives from it.
+# Override by exporting EBJEPA_TEAM (and/or EBJEPA_WORK) before sourcing.
+if [ -z "${EBJEPA_TEAM:-}" ]; then
+    for _eb_g in $(id -Gn 2>/dev/null); do
+        case "$_eb_g" in vivatech-*) EBJEPA_TEAM="$_eb_g"; break;; esac
+    done
+    unset _eb_g
+fi
+export EBJEPA_TEAM="${EBJEPA_TEAM:-}"
+if [ -z "$EBJEPA_TEAM" ] && [ -z "${EBJEPA_WORK:-}" ]; then
+    echo "env.sh: WARNING — no 'vivatech-*' team group found for '$USER'; set EBJEPA_TEAM or EBJEPA_WORK." >&2
+fi
+
+# Your personal work directory. WORK IS NOT YOUR HOME: clone the repo and run everything
+# from /lustre/work (the home quota blocks git/venvs). Derives from the detected team.
+WORK="${EBJEPA_WORK:-/lustre/work/$EBJEPA_TEAM/$USER}"
 export EBJEPA_WORK="$WORK"                  # exported so python (launch_sbatch) sees it
 ARCH=$(uname -m)                           # x86_64 on login node, aarch64 on compute nodes
 export EBJEPA_COMPUTE_ARCH=${EBJEPA_COMPUTE_ARCH:-aarch64}  # target arch for SLURM jobs
@@ -79,6 +95,7 @@ if [ -z "${EBJEPA_SLURM_CONFIGURED:-}" ]; then
         [ -n "$_eb_qos" ] && export EBJEPA_SLURM_QOS="$_eb_qos"
     fi
 fi
-# Export whatever we resolved (possibly empty -> omitted by the launcher).
-export EBJEPA_SLURM_ACCOUNT=${EBJEPA_SLURM_ACCOUNT:-}
+# Export whatever we resolved. If sacctmgr found nothing, fall back to the team/group name
+# (== the SLURM account on this cluster); empty only if even that is unknown.
+export EBJEPA_SLURM_ACCOUNT=${EBJEPA_SLURM_ACCOUNT:-$EBJEPA_TEAM}
 export EBJEPA_SLURM_QOS=${EBJEPA_SLURM_QOS:-}
