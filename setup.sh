@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# dirnamet setup script for EB-JEPA on the HTW cluster.
+# One-shot setup script for EB-JEPA on the HTW cluster.
 #
 # Clone the repo ANYWHERE (even your home) and run `bash setup.sh`: it relocates
 # itself to your work partition ($WORK/eb_jepa), sets everything up there, and leaves
