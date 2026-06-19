@@ -409,6 +409,48 @@ class ImpalaEncoder(nn.Module):
         return features
 
 
+class MultiSourceFusion(nn.Module):
+    """Fuse several embedding sources into one model latent, with a learned
+    FALLBACK for missing sources (so any subset can be present per example).
+
+    Mirrors multi-source foundation encoders: each source has its own linear
+    projection to a common width; rows where a source is absent are replaced by
+    a learned per-source fallback vector; the projected sources are concatenated
+    and fused by an MLP. Sources can be cell- or gene-level embeddings
+    (e.g. MosaicFM, expression-PCA, pathway activity, scGPT, ESM2, KGE).
+
+    forward(sources): dict name -> (x[B, d_name], mask[B] bool). A name absent
+    from the dict, or rows with mask=False, use that source's fallback.
+    Returns [B, h_model].
+    """
+
+    def __init__(self, source_dims: dict, h_proj: int = 256, h_model: int = 256):
+        super().__init__()
+        self.names = list(source_dims)
+        self.proj = nn.ModuleDict({n: nn.Linear(d, h_proj) for n, d in source_dims.items()})
+        self.fallback = nn.ParameterDict(
+            {n: nn.Parameter(torch.zeros(h_proj)) for n in self.names}
+        )
+        self.mlp = nn.Sequential(
+            nn.Linear(h_proj * len(self.names), h_model), nn.GELU(),
+            nn.Linear(h_model, h_model),
+        )
+        self.apply(init_module_weights)
+
+    def forward(self, sources: dict):
+        B = next(v[0].shape[0] for v in sources.values())
+        parts = []
+        for n in self.names:
+            if n in sources:
+                x, m = sources[n]
+                p = self.proj[n](x)
+                p = torch.where(m[:, None].bool(), p, self.fallback[n][None, :])
+            else:
+                p = self.fallback[n][None, :].expand(B, -1)
+            parts.append(p)
+        return self.mlp(torch.cat(parts, dim=-1))
+
+
 class SetEncoder(TemporalBatchMixin, nn.Module):
     """Permutation-invariant, abundance-weighted DeepSets encoder for microbiome
     communities (or any set of token embeddings with per-token weights).

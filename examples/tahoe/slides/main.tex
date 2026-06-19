@@ -1,136 +1,227 @@
 \documentclass[aspectratio=169]{beamer}
-\usepackage[english]{babel}
 \usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{helvet}\renewcommand{\familydefault}{\sfdefault}
 \usepackage{amsmath, amssymb, bm}
 \usepackage{booktabs, xcolor}
-\usepackage{tcolorbox}
 \usepackage{graphicx}
-\tcbuselibrary{skins}
+\usepackage[most]{tcolorbox}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, fit, backgrounds}
+\tikzset{
+  blk/.style={rounded corners=4pt, draw=accent, fill=accent!12, line width=0.8pt, minimum height=0.95cm, minimum width=2.3cm, align=center, text=ink, font=\small\bfseries},
+  blki/.style={rounded corners=4pt, draw=accent2, fill=accent2!12, line width=0.8pt, minimum height=0.95cm, minimum width=2.3cm, align=center, text=ink, font=\small\bfseries},
+  dat/.style={align=center, text=ink, font=\footnotesize},
+  lat/.style={align=center, text=accent, font=\footnotesize\bfseries},
+  ar/.style={-{Stealth[length=2.4mm]}, line width=0.9pt, draw=muted},
+  src/.style={rounded corners=2pt, draw=#1, fill=#1!18, line width=0.6pt, minimum width=1.5cm, minimum height=0.42cm, font=\scriptsize, text=ink},
+}
 
-\definecolor{primary}{RGB}{15, 45, 80}
-\definecolor{secondary}{RGB}{0, 150, 136}
-\usetheme{Madrid}
-\usecolortheme{whale}
-\setbeamercolor{structure}{fg=primary}
-\setbeamercolor{title}{fg=white, bg=primary}
-\setbeamercolor{block title}{bg=primary, fg=white}
-\setbeamercolor{block body}{bg=primary!5, fg=black}
+% ---- modern, fine palette ----
+\definecolor{ink}{HTML}{1F2937}      % slate-800 (titles/text)
+\definecolor{accent}{HTML}{0D9488}   % teal-600 (highlights, rules)
+\definecolor{accent2}{HTML}{6366F1}  % indigo-500 (secondary accent)
+\definecolor{muted}{HTML}{94A3B8}    % slate-400 (footer/secondary)
+\definecolor{paper}{HTML}{FFFFFF}
+
+\usetheme{default}
+\usecolortheme{default}
+\setbeamercolor{normal text}{fg=ink, bg=paper}
+\setbeamercolor{structure}{fg=accent}
+\setbeamercolor{itemize item}{fg=accent}
+\setbeamercolor{itemize subitem}{fg=accent}
+\setbeamerfont{frametitle}{size=\Large, series=\bfseries}
 \setbeamertemplate{navigation symbols}{}
-\setbeamertemplate{itemize items}[circle]
-\newcommand{\hl}[1]{\textcolor{secondary}{\textbf{#1}}}
+\setbeamertemplate{itemize item}{\small\raisebox{0.15ex}{\textcolor{accent}{\rule{1.1ex}{1.1ex}}}}
+\setbeamertemplate{itemize subitem}{\textcolor{muted}{--}}
 
-\title[EB-JEPA world model of drug perturbations]{An Energy-Based JEPA World Model of Drug Perturbations}
-\subtitle{Predicting single-cell state in latent space on Tahoe-100M}
-\author{Team Dynamics}
-\institute{HackTheWorld(s) --- EB-JEPA}
-\date{\today}
+% thin underlined frame title, no heavy bar
+\setbeamertemplate{frametitle}{%
+  \vspace{10pt}\hspace{2pt}{\usebeamerfont{frametitle}\textcolor{ink}{\insertframetitle}}\par
+  \vspace{3pt}\hspace{2pt}{\color{accent}\rule{0.32\linewidth}{1.4pt}}\vspace{-2pt}}
+
+% minimal footer: just a thin page number
+\setbeamertemplate{footline}{\hfill{\scriptsize\color{muted}\insertframenumber\,/\,\inserttotalframenumber}\hspace{10pt}\vspace{6pt}}
+
+\newcommand{\hl}[1]{\textcolor{accent}{\textbf{#1}}}
+\newcommand{\hk}[1]{\textcolor{accent2}{\textbf{#1}}}
+
+% light card with a thin left accent rule
+\newtcolorbox{card}[1][]{enhanced, breakable=false, colback=accent!4, colframe=accent!4,
+  boxrule=0pt, arc=3pt, left=10pt, right=8pt, top=5pt, bottom=5pt,
+  borderline west={2.2pt}{0pt}{accent},
+  fonttitle=\bfseries\small, coltitle=ink, title={#1}}
+\newtcolorbox{card2}[1][]{enhanced, colback=accent2!5, colframe=accent2!5,
+  boxrule=0pt, arc=3pt, left=10pt, right=8pt, top=5pt, bottom=5pt,
+  borderline west={2.2pt}{0pt}{accent2},
+  fonttitle=\bfseries\small, coltitle=ink, title={#1}}
 
 \begin{document}
 
-\begin{frame}\titlepage\end{frame}
+% ---------------- TITLE ----------------
+{\setbeamertemplate{footline}{}
+\begin{frame}[plain]
+\vspace{1.4cm}
+\hspace{2pt}{\color{accent}\rule{3cm}{2pt}}\par\vspace{10pt}
+{\huge\bfseries\textcolor{ink}{An Energy-Based JEPA}}\par\vspace{4pt}
+{\huge\bfseries\textcolor{ink}{World Model of Drug Perturbations}}\par\vspace{12pt}
+{\large\color{muted}Predicting single-cell state in latent space on Tahoe-100M}\par
+\vspace{1.2cm}
+{\color{ink}\textbf{Team Dynamics}}\quad\textcolor{muted}{$\cdot$ HackTheWorld(s) $\cdot$ EB-JEPA}
+\end{frame}}
 
 % ---------------- 1. PREMISE ----------------
 \begin{frame}{The premise --- JEPA for cell biology}
-\begin{block}{Predict, don't reconstruct}
+\vspace{6pt}
+\begin{card}[Predict, don't reconstruct]
 Single-cell transcriptomes are \hl{noisy, sparse, high-dimensional sets} of genes.
 Reconstructing counts (scGPT) is wasteful; \hl{predicting in a learned latent space}
 (LeCun's JEPA) discards task-irrelevant noise. \emph{GeneJEPA} (Litman 2025) proved this on Tahoe-100M.
-\end{block}
-\begin{block}{Our goal}
-A \hl{true Energy-Based JEPA \emph{world model}} of drug response ---
-\hl{(control cell, drug) $\rightarrow$ perturbed cell} --- on a \hl{frozen pretrained encoder},
-with \hl{biology-specific losses}, beating the standard baselines.
-\end{block}
+\end{card}
+\vspace{6pt}
+\begin{card2}[Our goal]
+A \hk{true Energy-Based JEPA world model} of drug response ---
+\hk{(control cell, drug) $\rightarrow$ perturbed cell} --- on a \hk{frozen pretrained encoder},
+with \hk{biology-specific losses}, beating the standard baselines.
+\end{card2}
 \end{frame}
 
-% ---------------- 2. DATA composition ----------------
-\begin{frame}{The data --- Tahoe-100M (Vevo/Arc): 100M cells, 1{,}000 lines, 3{,}000 drugs}
-\centering\includegraphics[height=0.66\textheight]{data_composition.png}\\
-{\footnotesize Our subset: a Tahoe-x1 embeddings shard. Each cell = MosaicFM-3B embedding (2560-d)
-$+$ drug $+$ cell line $+$ MoA. Preprocessing: top-K gene panel, per-feature z-score, co-expression modules.}
+% ---------------- 2. DATA ----------------
+\begin{frame}{The data --- Tahoe-100M: 100M cells, 1{,}000 lines, 3{,}000 drugs}
+\centering\includegraphics[height=0.64\textheight]{data_composition.png}\par
+\vspace{4pt}{\footnotesize\color{ink} Each cell $=$ MosaicFM-3B embedding (2560-d) $+$ drug $+$ cell line $+$ MoA.
+Preprocessing: top-K gene panel, per-feature z-score, co-expression modules.}
 \end{frame}
 
-% ---------------- 3. DATA umap ----------------
+% ---------------- 3. UMAP ----------------
 \begin{frame}{The data --- UMAP of the cell representations}
-\centering\includegraphics[height=0.70\textheight]{umap_panel.png}\\
-{\footnotesize 40k cells. Clean structure by \hl{cell line}, a visible \hl{control vs treated} split,
-and drug-level grouping --- a healthy space to build a world model on.}
+\centering\includegraphics[height=0.70\textheight]{umap_panel.png}\par
+\vspace{2pt}{\footnotesize\color{ink} 40k cells: clean structure by \hl{cell line}, a visible \hl{control vs treated}
+split, drug-level grouping --- a healthy space to build a world model on.}
 \end{frame}
 
 % ---------------- 4. RECIPE ----------------
 \begin{frame}{The EB-JEPA recipe in one equation}
-\begin{block}{Energy = prediction error in representation space}
-\[ \mathcal{L} \;=\; \underbrace{\big\lVert g_\phi(f_\theta(x),\, q_\omega(a)) - f_\theta(x')\big\rVert^2}_{\text{predict target rep. from context + action}} \;+\; \lambda\, \mathcal{R}(z) \]
-\end{block}
-\small
-\begin{itemize}
-  \item \hl{$f_\theta$ encoder}, \hl{$g_\phi$ predictor}, \hl{$q_\omega$ action encoder}, \hl{$\mathcal{R}$ anti-collapse regularizer}.
-  \item Three settings: image (identity $g_\phi$), video (predict next), \hl{action-conditioned (world model)} --- ours.
+\vspace{10pt}
+\begin{card}[Energy $=$ prediction error in representation space]
+\centering\vspace{2pt}
+$\displaystyle \mathcal{L} = \big\lVert\, g_\phi(f_\theta(x),\, q_\omega(a)) - f_\theta(x')\,\big\rVert^2 \;+\; \lambda\,\mathcal{R}(z)$
+\vspace{2pt}
+\end{card}
+\vspace{10pt}
+\begin{itemize}\setlength\itemsep{5pt}
+  \item \hl{$f_\theta$} encoder \quad \hl{$g_\phi$} predictor \quad \hl{$q_\omega$} action encoder \quad \hl{$\mathcal{R}$} anti-collapse regularizer
+  \item Three settings: image (identity $g_\phi$) $\cdot$ video (predict next) $\cdot$ \hk{action-conditioned world model} --- ours
 \end{itemize}
 \end{frame}
 
 % ---------------- 5. ARCHITECTURE ----------------
-\begin{frame}{Our model --- frozen foundation encoder + learned drug predictor}
-\begin{columns}
+\begin{frame}{Our model --- frozen foundation encoder $+$ learned drug predictor}
+\vspace{4pt}
+\begin{columns}[T]
 \begin{column}{0.58\textwidth}\small
-\begin{itemize}
-  \item \hl{$f_\theta$} = \textbf{frozen} MosaicFM-3B embedding (2560-d) --- a pretrained single-cell foundation encoder.
-  \item \hl{$g_\phi$} = GRU predictor, \hl{conditioned on the drug} (action $a$).
-  \item Energy $=\lVert g_\phi(z_{\text{ctrl}}, a) - z_{\text{pert}}\rVert^2$ via \texttt{eb\_jepa.JEPA.unroll}.
-  \item \hl{Only the predictor is trained.} A drug is a \emph{large, controlled} state change $\Rightarrow$ \hl{no collapse} (unlike slow time series).
+\begin{itemize}\setlength\itemsep{6pt}
+  \item \hl{$f_\theta$} $=$ \textbf{frozen} MosaicFM-3B embedding (2560-d), a pretrained single-cell foundation encoder
+  \item \hl{$g_\phi$} $=$ GRU predictor, \hl{conditioned on the drug} (action $a$)
+  \item Energy $=\lVert g_\phi(z_{\text{ctrl}}, a) - z_{\text{pert}}\rVert^2$ via \texttt{JEPA.unroll}
+  \item \hk{Only the predictor is trained}; a drug is a large, controlled state change $\Rightarrow$ \hk{no collapse}
 \end{itemize}
 \end{column}
-\begin{column}{0.42\textwidth}
+\begin{column}{0.40\textwidth}
+\begin{card2}[Pipeline]
 \footnotesize
-\begin{tcolorbox}[colback=secondary!8,colframe=primary,title={Pipeline}]
-$z_{\text{ctrl}}$ (DMSO cell)\\
-$\quad\downarrow\; g_\phi(\cdot,\ \text{drug})$\\
-$\hat z_{\text{pert}}$\\
-$\quad\downarrow$ energy vs real $z_{\text{pert}}$
-\end{tcolorbox}
+$z_{\text{ctrl}}$ \textcolor{muted}{(DMSO cell)}\\[3pt]
+$\downarrow$\; $g_\phi(\cdot,\ \text{drug})$\\[3pt]
+$\hat z_{\text{pert}}$\\[3pt]
+$\downarrow$\; energy vs real $z_{\text{pert}}$
+\end{card2}
 \end{column}
 \end{columns}
 \end{frame}
 
-% ---------------- 6. CONTRIBUTIONS / LOSSES ----------------
+% ---------------- 5b. ARCHITECTURE SCHEMATIC ----------------
+\begin{frame}{Architecture --- schematic}
+\vspace{6pt}\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[dat] (cell) at (0,1.3) {control cell\\(RNA-seq)};
+  \node[blk] (enc) at (3,1.3) {MosaicFM-3B\\{\scriptsize\mdseries frozen}};
+  \node[lat] (zc) at (5.5,1.3) {$z_{\text{ctrl}}$};
+  \node[dat] (drug) at (0,-0.2) {drug\\(SMILES)};
+  \node[blki] (aenc) at (3,-0.2) {action enc.};
+  \node[lat] (a) at (5.5,-0.2) {$a$};
+  \node[blki] (pred) at (7.9,0.55) {predictor $g_\phi$\\{\scriptsize\mdseries GRU}};
+  \node[lat] (zp) at (10.4,0.55) {$\hat z_{\text{pert}}$};
+  \node[dat] (treated) at (4.7,-1.5) {treated cell\\$\to$ MosaicFM};
+  \node[lat] (zpt) at (7.9,-1.5) {$z_{\text{pert}}$};
+  \node[blk, fill=accent!6] (cost) at (10.4,-1.5) {energy\\{\scriptsize\mdseries $\lVert\hat z_{\text{pert}}-z_{\text{pert}}\rVert^2$}};
+  \draw[ar](cell)--(enc); \draw[ar](enc)--(zc); \draw[ar](zc)--(pred);
+  \draw[ar](drug)--(aenc); \draw[ar](aenc)--(a); \draw[ar](a)--(pred);
+  \draw[ar](pred)--(zp); \draw[ar](zp)--(cost);
+  \draw[ar](treated)--(zpt); \draw[ar](zpt)--(cost);
+\end{tikzpicture}
+\par\vspace{8pt}
+{\footnotesize\color{ink} \hl{Frozen} foundation encoder (teal) $+$ \hk{trained} action-conditioned predictor (indigo).
+Energy $=$ prediction error against the real treated-cell embedding.}
+\end{frame}
+
+% ---------------- 6. LOSSES ----------------
 \begin{frame}{Our contribution --- three biology-aware loss terms}
-\small
-\textit{Two tracks:} \hl{(A) representation} (trainable encoder) = SIGReg + Pathway;
-\hl{(B) world model} (\textbf{frozen} encoder $\Rightarrow$ no collapse, no anti-collapse term) = PerturbationSignature + Pathway.\\[3pt]
-\begin{tcolorbox}[colback=secondary!6,colframe=primary,title={1. SIGReg (anti-collapse; track A; our choice vs GeneJEPA VICReg)}]
-Forces the latent batch to be \hl{isotropic Gaussian} (Epps--Pulley statistic on random 1-D
-projections). One hyper-parameter, linear cost, more stable than VICReg's two coefficients.
-\end{tcolorbox}
-\begin{tcolorbox}[colback=secondary!6,colframe=primary,title={2. PathwayCoherenceLoss (gene-program prior)}]
-Latent pairwise distances must match \hl{co-expression-module activity} distances:
-$\mathcal{L}_{\text{path}}=\lVert \widetilde{D}_{\text{latent}} - \widetilde{D}_{\text{module}}\rVert^2$. Injects biological program structure.
-\end{tcolorbox}
-\begin{tcolorbox}[colback=secondary!6,colframe=primary,title={3. PerturbationSignatureLoss (drug consistency)}]
-Predicted shift $\hat z_{\text{pert}}-z_{\text{ctrl}}$ should point the \hl{same direction for the same drug}
-(a compound has a characteristic signature) --- supervised-contrastive on shift directions.
-\end{tcolorbox}
+\vspace{2pt}{\footnotesize\color{muted}Track A (trainable encoder): SIGReg $+$ Pathway\quad$\cdot$\quad Track B (frozen encoder $\Rightarrow$ no anti-collapse): PerturbationSignature $+$ Pathway}\par
+\vspace{5pt}\small
+\begin{card}[1. SIGReg --- anti-collapse (track A; our choice vs GeneJEPA's VICReg)]
+Forces the latent batch toward an \hl{isotropic Gaussian} (Epps--Pulley statistic on random 1-D projections).
+One hyper-parameter, linear cost, steadier than VICReg's two coefficients.
+\end{card}
+\vspace{4pt}
+\begin{card}[2. PathwayCoherenceLoss --- gene-program prior]
+Latent pairwise distances must match \hl{co-expression-module activity} distances --- injects biological program structure.
+\end{card}
+\vspace{4pt}
+\begin{card2}[3. PerturbationSignatureLoss --- drug consistency (track B)]
+Predicted shift $\hat z_{\text{pert}}-z_{\text{ctrl}}$ points the \hk{same direction for the same drug} (a compound's signature).
+\end{card2}
 \end{frame}
 
-% ---------------- 6b. COLLAPSE ABLATION ----------------
+% ---------------- 6c. FUSION EXTENSION ----------------
+\begin{frame}{Extension --- fuse multiple embedding sources}
+\vspace{2pt}\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[src=accent]  (a) at (0,2.4) {MosaicFM};
+  \node[src=accent2] (b) at (0,1.8) {expr.\ PCA};
+  \node[src=accent]  (c) at (0,1.2) {pathway};
+  \node[src=muted]   (d) at (0,0.6) {scGPT$^\ast$};
+  \node[src=muted]   (e) at (0,0.0) {ESM2 / KGE$^\ast$};
+  \node[blk, minimum width=1.7cm] (proj) at (3.3,1.2) {per-source\\proj.\ ($+$ fallback)};
+  \node[blki, minimum width=1.5cm] (mlp) at (6.4,1.2) {MLP\\fusion};
+  \node[lat] (z) at (8.7,1.2) {$z$};
+  \node[lat] (p) at (10.6,1.2) {predictor};
+  \foreach \n in {a,b,c,d,e} \draw[ar](\n.east)--(proj.west);
+  \draw[ar](proj)--(mlp); \draw[ar](mlp)--(z); \draw[ar](z)--(p);
+\end{tikzpicture}
+\par\vspace{8pt}
+{\footnotesize\color{ink} Each source is \hl{projected} to a common dim, concatenated, fused by an MLP.
+A \hl{learned fallback} replaces any \textbf{missing source} per cell/gene (robust to gaps).
+$^\ast$ plug-in sources (foundation/sequence/knowledge-graph) --- the module accepts any subset.}
+\end{frame}
+
+% ---------------- 6b. COLLAPSE ----------------
 \begin{frame}{The collapse we fought --- SIGReg keeps the encoder alive}
-\centering\includegraphics[height=0.62\textheight]{collapse.png}\\
-{\footnotesize Same cell JEPA on PBMC3k, \hl{with vs without} the anti-collapse term.
-Without it the embedding \hl{std $\to 0.002$} (collapse), effective rank $\to 1$, and the
-cell-type probe drops to \hl{0.43} ($\approx$ chance). With SIGReg: \hl{std $\approx 1.1$, probe $0.94$}.}
+\centering\includegraphics[height=0.60\textheight]{collapse.png}\par
+\vspace{3pt}{\footnotesize\color{ink} Same cell JEPA on PBMC3k, \hl{with vs without} anti-collapse. Without it:
+embedding \hl{std $\to0.002$}, effective rank $\to1$, probe \hl{$0.43\approx$ chance}. With SIGReg: \hl{std $\approx1.1$, probe $0.94$}.}
 \end{frame}
 
-% ---------------- 7. HEADLINE RESULT ----------------
+% ---------------- 7. RESULT ----------------
 \begin{frame}{Result --- the world model beats both baselines}
-\begin{columns}
-\begin{column}{0.5\textwidth}
-\centering\includegraphics[width=\linewidth]{fig_skill.png}
-\end{column}
-\begin{column}{0.48\textwidth}\small
-234k train / 59k val cells, real DMSO controls.
+\vspace{4pt}
+\begin{columns}[c]
+\begin{column}{0.5\textwidth}\centering\includegraphics[width=\linewidth]{fig_skill.png}\end{column}
+\begin{column}{0.46\textwidth}\small
+\textcolor{muted}{234k train / 59k val cells, real DMSO controls.}
 \begin{center}\footnotesize
 \begin{tabular}{lc}
 \toprule
-predict $z_{\text{pert}}$ from\dots & rel. MSE $\downarrow$\\
+predict $z_{\text{pert}}$ from & rel. MSE $\downarrow$\\
 \midrule
 no-effect ($z_{\text{ctrl}}$) & 1.00\\
 mean drug shift & 1.00\\
@@ -138,29 +229,26 @@ mean drug shift & 1.00\\
 \bottomrule
 \end{tabular}
 \end{center}
-\hl{skill 1.20$\times$ vs no-effect, 1.19$\times$ vs mean-shift.}
-Beating \emph{mean-shift} = capturing \hl{context-specific} drug response.
+\hl{skill 1.20$\times$} vs no-effect, \hl{1.19$\times$} vs mean-shift. Beating mean-shift $=$ \hk{context-specific} drug response.
 \end{column}
 \end{columns}
 \end{frame}
 
-% ---------------- 8. WHY WORLD MODEL ----------------
+% ---------------- 8. WHY ----------------
 \begin{frame}{Why a world model? Plain SSL learns identity, not drugs}
-\begin{columns}
+\vspace{4pt}
+\begin{columns}[c]
 \begin{column}{0.5\textwidth}\centering\includegraphics[width=\linewidth]{fig_probe.png}\end{column}
-\begin{column}{0.48\textwidth}\small
-A from-scratch two-view JEPA on raw genes (700k cells) linear-probes to
-\hl{F1 0.93 on cell line} but \hl{0.02 on drug}.\\[4pt]
-$\Rightarrow$ representation SSL organizes by the \hl{dominant variance (cell identity)};
-\hl{drug response needs the action-conditioned predictor}.
+\begin{column}{0.46\textwidth}\small
+From-scratch two-view JEPA on raw genes (700k cells): \hl{F1 0.93 on cell line} but \hl{0.02 on drug}.\\[6pt]
+$\Rightarrow$ SSL organizes by the \hl{dominant variance (cell identity)}; \hk{drug response needs the action-conditioned predictor}.
 \end{column}
 \end{columns}
 \end{frame}
 
 % ---------------- 9. BENCHMARK ----------------
 \begin{frame}{Benchmark --- PBMC3k cell type (literature dataset)}
-\small
-\begin{center}
+\vspace{8pt}\centering\small
 \begin{tabular}{lcc}
 \toprule
 method & setting & macro-F1\\
@@ -172,38 +260,37 @@ PCA-50 & in-domain & 0.96\\
 GeneJEPA & frozen transfer & 0.69\\
 scGPT & frozen transfer & 0.23\\
 \bottomrule
-\end{tabular}
-\end{center}
-\hl{Honest read:} in-domain, raw expression is near-perfect on PBMC3k (cell types are
-linearly separable) --- this benchmark does \emph{not} discriminate methods in-domain.
-GeneJEPA's 0.69 is the much harder \emph{frozen-transfer} regime. \hl{Our edge is the
-perturbation world model, where no trivial baseline exists.}
+\end{tabular}\par
+\vspace{8pt}{\footnotesize\color{ink}\hl{Honest read:} in-domain, raw expression is near-perfect (cell types are linearly separable)
+--- this benchmark doesn't discriminate methods in-domain. GeneJEPA's 0.69 is the harder \emph{frozen-transfer} regime.
+\hk{Our edge is the perturbation world model, where no trivial baseline exists.}}
 \end{frame}
 
-% ---------------- 10. MICROBIOME finding ----------------
+% ---------------- 10. MICROBIOME ----------------
 \begin{frame}{An honest negative --- microbiome dynamics collapse}
-\begin{columns}
+\vspace{4pt}
+\begin{columns}[c]
 \begin{column}{0.5\textwidth}\centering\includegraphics[width=\linewidth]{fig_microbiome.png}\end{column}
-\begin{column}{0.48\textwidth}\small
-Same recipe on DIABIMMUNE gut trajectories: representation works
-(\hl{age $R^2\!\approx\!0.53$}, microbiome clock) but the world model
-\hl{collapses temporally} (\texttt{tvar}$\to0$, skill $<1$).\\[4pt]
-\hl{Insight:} VICReg keeps \emph{batch} variance, not \emph{temporal} variance ---
-slow drift makes ``no change'' unbeatable. \hl{Controlled perturbations (Tahoe) remove the problem.}
+\begin{column}{0.46\textwidth}\small
+Same recipe on DIABIMMUNE gut trajectories: representation works (\hl{age $R^2\!\approx\!0.53$}) but the world model
+\hl{collapses temporally} (\texttt{tvar}$\to0$, skill $<1$).\\[6pt]
+\hk{Insight:} VICReg keeps \emph{batch} variance, not \emph{temporal} variance --- slow drift makes ``no change'' unbeatable.
+Controlled perturbations (Tahoe) remove the problem.
 \end{column}
 \end{columns}
 \end{frame}
 
 % ---------------- 11. TAKEAWAYS ----------------
 \begin{frame}{Takeaways}
-\begin{block}{}
-\begin{itemize}
-  \item A \hl{true EB-JEPA world model} of drug perturbation (frozen MosaicFM + learned action predictor) that \hl{beats no-effect \& mean-shift baselines ($1.2\times$)} on Tahoe-100M.
-  \item \hl{Three biology-aware design choices}: SIGReg, PathwayCoherenceLoss, PerturbationSignatureLoss --- our differentiators from GeneJEPA.
-  \item A \hl{controlled, honest comparison} (+ a clean microbiome collapse finding that motivates the perturbation setting).
+\vspace{8pt}
+\begin{itemize}\setlength\itemsep{8pt}
+  \item A \hl{true EB-JEPA world model} of drug perturbation (frozen MosaicFM $+$ learned action predictor) that \hk{beats no-effect \& mean-shift baselines (1.2$\times$)} on Tahoe-100M.
+  \item \hl{Three biology-aware design choices}: SIGReg, PathwayCoherenceLoss, PerturbationSignatureLoss.
+  \item A \hl{controlled, honest comparison} $+$ a clean \hk{collapse finding} that motivates the perturbation setting.
 \end{itemize}
-\end{block}
-\centering\hl{Predict cellular response to drugs in latent space --- a step toward in-silico screening.}
+\vspace{14pt}
+\centering{\color{accent}\rule{4cm}{1.2pt}}\par\vspace{6pt}
+{\large\color{ink}\textbf{Predict cellular response to drugs in latent space --- toward in-silico screening.}}
 \end{frame}
 
 \end{document}

@@ -83,3 +83,20 @@ def test_jepa_unroll_end_to_end():
     assert torch.isfinite(total)
     total.backward()  # gradients flow through encoder + predictor + regularizer
     assert any(p.grad is not None for p in enc.parameters())
+
+
+def test_multisource_fusion_with_fallback():
+    import torch
+    from eb_jepa.architectures import MultiSourceFusion
+    fus = MultiSourceFusion({"mosaicfm": 2560, "pca": 50, "pathway": 32}, h_proj=64, h_model=128)
+    B = 8
+    sources = {
+        "mosaicfm": (torch.randn(B, 2560), torch.ones(B, dtype=torch.bool)),
+        "pca": (torch.randn(B, 50), torch.tensor([1, 1, 1, 1, 0, 0, 0, 0], dtype=torch.bool)),
+        # "pathway" omitted entirely -> fully fallback
+    }
+    z = fus(sources)
+    assert z.shape == (B, 128)
+    z.sum().backward()
+    # fallback params receive gradient (rows where a source is missing)
+    assert fus.fallback["pca"].grad is not None and fus.fallback["pathway"].grad is not None
