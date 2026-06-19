@@ -1,4 +1,4 @@
-# Tahoe-JEPA — ce qu'il reste à faire
+√# Tahoe-JEPA — ce qu'il reste à faire
 
 État du modèle : world-model de perturbation médicamenteuse `(cellule contrôle, drug) → cellule perturbée`
 construit sur eb-JEPA. Deux encoders disponibles :
