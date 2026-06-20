@@ -11,6 +11,10 @@ data:
 loss:
   sig_coeff: 1.0       # PerturbationSignatureLoss (drug-signature consistency) -- biology
   path_coeff: 1.0      # PathwayCoherenceLoss (program structure)               -- biology
+  cos_coeff: 1.0       # JEPA-DNA latent cosine alignment (set 0.0 for MSE-only baseline ablation)
+
+model:
+  layers: 1            # predictor (GRU) depth -- JEPA-DNA: predictor depth is the key knob
 
 optim:
   epochs: 30

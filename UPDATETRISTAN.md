@@ -157,3 +157,83 @@ venv par arch (`eb_jepa_$ARCH`). pyarrow uniquement sur login (x86) → précalc
 3. Mirrorer le style **REPORT** dans le deck.
 
 (Détail complet des todos → [examples/tahoe/NEXT_STEPS.md](examples/tahoe/NEXT_STEPS.md).)
+
+---
+
+## 10. Entraînement en 2 ÉTAPES — JEPA-DNA porté au RNA (ajout récent)
+
+**Inspiration : JEPA-DNA** (Daniel et al., NVIDIA 2026) — *ground* un backbone génomique gelé en
+prédisant, dans l'espace latent, la représentation **globale** de segments masqués (alignement
+**cosine** vers une cible **EMA**, anti-collapse **VICReg**). On garde l'**idée** mais l'unité masquée
+devient un **GÈNE** (pas un nucléotide) — adapté à la transcriptomique.
+
+### 10.1 JEPA ≠ world-model (clarification importante)
+- **JEPA** = un *principe* d'entraînement (prédire dans l'espace des représentations).
+- **World-model** = un *type de modèle* : prédit comment un état évolue **sous une ACTION** (état + action → état futur).
+
+| | Étape 1 (`ground.py`) | Étape 2 (`perturb.py`) |
+|---|---|---|
+| Principe JEPA | ✅ | ✅ |
+| Action ? | ❌ non | ✅ le médicament (action-conditionné) |
+| Prédit un futur/conséquence ? | ❌ gènes masqués de la **même** cellule | ✅ la cellule **après** le drug |
+| Donc c'est… | un **encodeur** (représentation) | un **world-model** |
+
+→ L'étape 1 n'est **pas** un world-model : pas d'action, pas de dynamique. Sa sortie = un **encodeur entraîné**.
+
+### 10.2 Le pipeline en 2 étapes (E3)
+```
+ ÉTAPE A — pré-entraînement (ground.py, masked-gene JEPA)
+   gènes ──masque programmé──► 🟩 SetTransformer (online)  ──cosine──► cible EMA (full)
+                                       + VICReg(var,cov)  → sauve l'encodeur (target EMA)
+
+ ÉTAPE B — world-model (perturb.py) avec CET encodeur GELÉ
+   genes_ctrl ─► 🧊 SetTransformer(figé) ─► z_ctrl ┐
+   drug fp ────────────────────────────────────────├─► 🟩 g_φ(z_ctrl, drug) ─► ẑ_pert
+   genes_pert ─► 🧊 SetTransformer(figé) ─► z_pert ─┴────◇ ‖ẑ_pert − z_pert‖² (énergie eb-JEPA)
+```
+- Encodeur **gelé** en étape B ⇒ aucun collapse, cible `z_pert` fixe.
+- **Condition data** : le world-model doit tourner sur des **gènes bruts** (le SetTransformer mange `[2000]`),
+  pas sur MosaicFM ⇒ il faut un **cache de perturbation avec gènes bruts** (re-precompute, cf. §10.6).
+
+### 10.3 `z_pert` n'apparaît QUE dans la loss (principe JEPA)
+Le predictor reçoit **seulement** `(z_ctrl, drug)` et sort `ẑ_pert`. Le **vrai** `z_pert` (encodage de la
+cellule traitée) sert **uniquement de cible** dans `‖ẑ_pert − z_pert‖²`. En inférence/screening, `z_pert`
+n'est pas nécessaire : on donne `(z_ctrl, drug)` → on lit `ẑ_pert`. La loss eb-JEPA = `SquareLossSeq` via
+`JEPA.unroll` (`ploss`) ; `R = NoReg` car l'encodeur est gelé (rien à régulariser).
+
+### 10.4 Modèle 1 amélioré (terme cosine JEPA-DNA)
+`perturb.py` : ajout d'un terme **cosine** d'alignement latent `(1 − cos(ẑ_pert, z_pert))` en plus de la
+MSE (knob `loss.cos_coeff` ; 0.0 = baseline MSE-seule, 1.0 = hybride). Mirroir du finding JEPA-DNA :
+l'alignement latent cosine est un meilleur signal que la reconstruction seule, le **hybride** est le meilleur.
+
+### 10.5 À quoi comparer — baselines & benchmarks (honnête)
+On évalue **deux choses séparément** :
+- **L'encodeur** (étape 1) → **Macro-F1** d'un probe linéaire (drug/moa/cell_line) vs :
+  `raw` / `PCA-50` / **`SetTransformer random-init gelé`** (prouve que le pré-entraînement apporte qqch) / `MosaicFM gelé`.
+- **Le world-model** (étape 2) → **skill = `MSE_baseline / MSE_pred`** (ratio, scale-invariant) vs :
+  - **no-effect** (`ẑ_pert = z_ctrl`, le drug ne fait rien) → `skill_vs_identity` ;
+  - **mean-shift** (`z_ctrl + effet_moyen(drug)`, baseline forte) → `skill_vs_meanshift` ;
+  - *(à ajouter)* régression linéaire `(z_ctrl, drug) → z_pert`.
+- **Comparaison d'encodeurs dans le world-model** (skill comparable car ratio) :
+  **E1** MosaicFM gelé · **E2** SetTransformer entraîné bout-en-bout · **E3** notre SetTransformer pré-entraîné gelé (le 2-step).
+- **Généralisation** (déjà dans `experiments.py`) : **zero-shot drugs** (held-out via fingerprint), **scaling**, **screening**.
+
+> ⚠️ **Piège honnête** : le skill seul peut tromper (un encodeur dégénéré/faible-dim peut gonfler le skill
+> si le mean-shift est faible dans son espace). **Toujours reporter le couple `(probe F1, skill)`** : un bon
+> encodeur a F1 **et** skill élevés. Empêche de « gagner » par effondrement.
+
+### 10.6 Fichiers ajoutés / modifiés (cette session)
+| Fichier | Rôle |
+|---|---|
+| `eb_jepa/architectures.py` | `SetTransformer.forward(x, gene_mask)` + `mask_token` (re-masking) ; `LatentPredictor` |
+| `eb_jepa/losses.py` | `MaskedGeneJEPALoss` = cosine + VICReg(var,cov) |
+| `examples/tahoe/ground.py` + `cfgs/ground.yaml` + `ground.slurm` | driver grounding masked-gene (cible EMA, masquage programmé 0.15→0.45, probe vs raw/PCA) |
+| `examples/tahoe/perturb.py` + `cfgs/perturb.yaml` | terme cosine JEPA-DNA (`loss.cos_coeff`) + knob profondeur predictor |
+| `examples/tahoe/perturb_ablation.slurm` | ablation `cos=0` vs `cos=1` en une allocation |
+| `examples/tahoe/_smoke_ground.py`, `_smoke_perturb.py` | smoke tests synthétiques (passent : `SMOKE OK`) |
+
+### 10.7 TODO 2-step
+- [ ] **Re-precompute** un cache de perturbation avec **gènes bruts** (paires ctrl/pert) pour brancher E2/E3.
+- [ ] Charger `tahoe_ground.pt` (encodeur étape 1) **gelé** dans `perturb.py` (E3).
+- [ ] Câbler baselines manquantes : **SetTransformer random-init gelé** (probe) + **régression linéaire** (skill).
+- [ ] Ablation `skill(E1) vs E2 vs E3` + reporter `(F1, skill)` ensemble.

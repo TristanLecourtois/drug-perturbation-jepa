@@ -1,0 +1,36 @@
+# Masked-gene JEPA grounding (JEPA-DNA idea ported to single-cell RNA).
+meta:
+  seed: 0
+
+data:
+  cache_path: artifacts/tahoe/cache.pt   # gene-panel expression cache (NOT MosaicFM embeddings)
+  val_fraction: 0.2
+  batch_size: 256
+  gene_sources: ""                       # optional {name: tensor[K,d]} .pt (scGPT/KGE/ESM2)
+
+model:
+  dstc: 128          # latent dim D (pooled cell representation)
+  d_model: 192       # per-gene token width
+  n_latents: 32      # Perceiver latents
+  depth: 2           # encoder self-attn blocks
+  heads: 4
+  pred_depth: 3      # JEPA predictor MLP depth (their single biggest knob)
+
+mask:
+  frac_start: 0.15   # scheduled masking: start mild ...
+  frac_end: 0.45     # ... end aggressive (JEPA-DNA masking scheduler)
+
+loss:
+  var_coeff: 1.0     # VICReg variance  (JEPA-DNA: essential to avoid collapse)
+  cov_coeff: 1.0     # VICReg covariance
+
+optim:
+  kind: adamw        # "adamw" (from-scratch here) | "sgdm" (their finding for grounding pretrained)
+  epochs: 30
+  lr: 1.0e-3
+  weight_decay: 1.0e-4
+  ema_decay: 0.996   # target encoder EMA
+  probe_every: 5
+
+logging:
+  log_wandb: false

@@ -20,6 +20,7 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from omegaconf import OmegaConf
 
 from eb_jepa.architectures import RNNPredictor
@@ -101,6 +102,8 @@ def run(fname, overrides):
     sig = PerturbationSignatureLoss().to(device)
     path = PathwayCoherenceLoss().to(device)
     ls, lp = cfg.loss.sig_coeff, cfg.loss.path_coeff
+    lc = float(cfg.loss.get("cos_coeff", 0.0))   # JEPA-DNA: latent COSINE alignment, added to the
+                                                 # MSE prediction loss (their hybrid > either alone)
 
     opt = torch.optim.AdamW(predictor.parameters(), lr=cfg.optim.lr, weight_decay=cfg.optim.weight_decay)
 
@@ -110,21 +113,25 @@ def run(fname, overrides):
     ckpt = os.environ.get("EBJEPA_CKPTS", "checkpoints/tahoe"); os.makedirs(ckpt, exist_ok=True)
     for ep in range(1, cfg.optim.epochs + 1):
         jepa.train()
-        agg = {"pred": 0.0, "sig": 0.0, "path": 0.0, "n": 0}
+        agg = {"pred": 0.0, "sig": 0.0, "path": 0.0, "cos": 0.0, "n": 0}
         for b in train_loader:
             obs = b["observations"].to(device); act = b["actions"].to(device)
-            z_ctrl, _ = _states(obs)
+            z_ctrl, z_pert = _states(obs)
             preds, (loss, rloss, _, _, ploss) = jepa.unroll(
                 obs, act, nsteps=1, unroll_mode="autoregressive", compute_loss=True)
             pred = preds[:, :, -1, 0, 0]
             l_sig = sig(pred - z_ctrl, b["drug"].to(device))
             l_path = path(pred, b["pathway"].to(device))
-            total = loss + ls * l_sig + lp * l_path
+            # JEPA-DNA latent alignment: predicted state should point the same way as the
+            # true perturbed state (cosine), complementing the MSE on magnitude.
+            l_cos = (1.0 - F.cosine_similarity(pred, z_pert, dim=-1)).mean()
+            total = loss + ls * l_sig + lp * l_path + lc * l_cos
             opt.zero_grad(set_to_none=True); total.backward()
             torch.nn.utils.clip_grad_norm_(predictor.parameters(), 1.0); opt.step()
             n = obs.shape[0]
             agg["pred"] += (ploss.item() if torch.is_tensor(ploss) else float(ploss)) * n
-            agg["sig"] += l_sig.item() * n; agg["path"] += l_path.item() * n; agg["n"] += n
+            agg["sig"] += l_sig.item() * n; agg["path"] += l_path.item() * n
+            agg["cos"] += l_cos.item() * n; agg["n"] += n
         n = max(1, agg["n"])
         if ep % cfg.optim.probe_every == 0 or ep == cfg.optim.epochs:
             m = evaluate(jepa, val_loader, device, train_shift)
@@ -134,11 +141,12 @@ def run(fname, overrides):
                 torch.save({"jepa": jepa.state_dict(), "cfg": OmegaConf.to_container(cfg)},
                            os.path.join(ckpt, "tahoe_perturb.pt"))
             print(f"[ep {ep:03d}] train pred={agg['pred']/n:.4f} sig={agg['sig']/n:.4f} "
-                  f"path={agg['path']/n:.4f} || val pred={m['pred']:.4f} "
+                  f"path={agg['path']/n:.4f} cos={agg['cos']/n:.4f} || val pred={m['pred']:.4f} "
                   f"skill_vs_noeffect={m['skill_vs_identity']:.3f}x "
                   f"skill_vs_meanshift={m['skill_vs_meanshift']:.3f}x{star}")
         else:
-            print(f"[ep {ep:03d}] train pred={agg['pred']/n:.4f} sig={agg['sig']/n:.4f} path={agg['path']/n:.4f}")
+            print(f"[ep {ep:03d}] train pred={agg['pred']/n:.4f} sig={agg['sig']/n:.4f} "
+                  f"path={agg['path']/n:.4f} cos={agg['cos']/n:.4f}")
 
     print(f"== BEST (ep {best.get('epoch','?')}): skill_vs_noeffect={best.get('skill_vs_identity', float('nan')):.3f}x "
           f"skill_vs_meanshift={best['skill_vs_meanshift']:.3f}x ==")

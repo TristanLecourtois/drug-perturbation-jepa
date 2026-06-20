@@ -481,6 +481,7 @@ class SetTransformer(nn.Module):
         self.d_model = d_model
         self.id_emb = nn.Embedding(n_genes, d_model)         # always-on learned source
         self.value_proj = nn.Linear(1, d_model)              # per-gene expression -> token
+        self.mask_token = nn.Parameter(torch.randn(d_model) * 0.02)  # JEPA re-masking embedding
         self.src_proj = nn.ModuleDict()                      # filled by register_gene_source
         if source_dims:
             for name, d in source_dims.items():
@@ -520,10 +521,17 @@ class SetTransformer(nn.Module):
             base = base + proj(table)
         return base
 
-    def forward(self, x):
+    def forward(self, x, gene_mask=None):
+        """x: [B, K] expression. gene_mask: optional [B, K] bool, True = gene is
+        MASKED. Masked genes' tokens are replaced by the learned `mask_token`
+        (JEPA re-masking: the encoder never sees the masked gene's value), so a
+        context (masked) and a target (full) view share every other token."""
         B = x.shape[0]
         base = self._gene_base(x.device)                          # [K, d]
         tok = base[None] + self.value_proj(x[..., None])          # [B, K, d]
+        if gene_mask is not None:
+            mt = self.mask_token.to(tok.dtype).view(1, 1, -1)     # [1, 1, d]
+            tok = torch.where(gene_mask.unsqueeze(-1), mt, tok)   # masked -> mask_token
         tok = self.cross_ln_kv(tok)
         q = self.cross_ln_q(self.latents)[None].expand(B, -1, -1)  # [B, M, d]
         z, _ = self.cross(q, tok, tok)                            # [B, M, d]
@@ -533,6 +541,30 @@ class SetTransformer(nn.Module):
             z = z + a
             z = z + blk["ffn"](blk["ln2"](z))
         return self.head(z.mean(dim=1))                           # [B, out_d]
+
+
+class LatentPredictor(nn.Module):
+    """JEPA predictor head g_φ mapping a context (masked-view) global latent to
+    the target (full-view) global latent. For mean-pooled encoders JEPA-DNA uses
+    a small MLP predictor (the attention-predictor variant is for token-aggregated
+    backbones); here the SetTransformer already pools to a single vector, so an
+    MLP over the pooled latent is the matching design. Depth is configurable
+    because the predictor's depth is the single biggest knob in their ablation.
+    """
+
+    def __init__(self, dim, hidden=None, depth=3):
+        super().__init__()
+        hidden = hidden or dim * 2
+        layers, d = [], dim
+        for _ in range(max(1, depth - 1)):
+            layers += [nn.Linear(d, hidden), nn.GELU()]
+            d = hidden
+        layers += [nn.Linear(d, dim)]
+        self.net = nn.Sequential(*layers)
+        self.apply(init_module_weights)
+
+    def forward(self, z):
+        return self.net(z)
 
 
 class SetEncoder(TemporalBatchMixin, nn.Module):

@@ -506,6 +506,45 @@ class PerturbationSignatureLoss(nn.Module):
         return ((1.0 - sim) * same).sum() / denom  # pull same-drug shifts together
 
 
+class MaskedGeneJEPALoss(nn.Module):
+    """Masked-gene latent-prediction objective — the JEPA-DNA idea ported from raw
+    DNA sequences to single-cell RNA (transcriptomics).
+
+    JEPA-DNA grounds a frozen genomic backbone by predicting, in latent space, the
+    GLOBAL representation of masked sequence spans (cosine alignment to an EMA
+    target encoder), kept from collapsing by VICReg variance/covariance. We keep
+    that idea but the masked unit is a GENE (a token of the panel) rather than a
+    nucleotide span: a context encoder sees the cell with a subset of genes masked,
+    a predictor maps its pooled latent to the full-cell (EMA target) pooled latent.
+
+      L = (1 - cos(ẑ_glob, z_glob.detach()))          # latent prediction (eq. 2)
+        + var_coeff · Σ_j max(0, γ - σ_j(var_emb))      # anti-collapse variance
+        + cov_coeff · mean off-diag Cov(var_emb)²       # decorrelation
+
+    forward(pred_glob, target_glob, var_emb=None):
+        pred_glob   : [B, D]  predictor output (context view -> predicted target)
+        target_glob : [B, D]  EMA target encoder on the full (unmasked) cell
+        var_emb     : [B, D]  embeddings for VICReg (JEPA-DNA's deterministic
+                              "variance encoder", weights shared with the context
+                              encoder); defaults to pred_glob if not provided.
+    """
+
+    def __init__(self, var_coeff=1.0, cov_coeff=1.0, std_margin=1.0):
+        super().__init__()
+        self.var_coeff = var_coeff
+        self.cov_coeff = cov_coeff
+        self.std_loss_fn = HingeStdLoss(std_margin=std_margin)
+        self.cov_loss_fn = CovarianceLoss()
+
+    def forward(self, pred_glob, target_glob, var_emb=None):
+        jepa = (1.0 - F.cosine_similarity(pred_glob, target_glob.detach(), dim=-1)).mean()
+        ve = pred_glob if var_emb is None else var_emb
+        var = self.std_loss_fn(ve)
+        cov = self.cov_loss_fn(ve)
+        loss = jepa + self.var_coeff * var + self.cov_coeff * cov
+        return {"loss": loss, "jepa": jepa, "var": var, "cov": cov}
+
+
 ######################################################
 # BCS (Batched Characteristic Slicing) loss for SIGReg
 
