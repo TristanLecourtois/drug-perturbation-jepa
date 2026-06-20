@@ -602,3 +602,83 @@ class BCS(nn.Module):
         invariance_loss = F.mse_loss(z1, z2).mean()
         total_loss = invariance_loss + self.lmbd * bcs
         return {"loss": total_loss, "bcs_loss": bcs, "invariance_loss": invariance_loss}
+
+
+# --------------------------------------------------------------------------- #
+# Sliced-Wasserstein optimal transport (ported from eb_jepa singlecell/perturbator)
+#
+# Tahoe has no real paired control/perturbed cells, only the two *distributions*.
+# Matching predicted vs true perturbed point clouds by sliced-Wasserstein (instead
+# of an arbitrary control->perturbed pseudo-pairing) is the conceptually correct
+# objective: project both clouds onto many random unit directions and average the
+# 1-D Wasserstein (sorted-quantile) distance. Works for N != M via a shared grid.
+# --------------------------------------------------------------------------- #
+def _sw_interp(x, xp, fp):
+    """1-D linear interpolation (numpy.interp semantics) on sorted xp."""
+    idx = torch.searchsorted(xp, x).clamp(1, xp.numel() - 1)
+    x0, x1 = xp[idx - 1], xp[idx]
+    y0, y1 = fp[idx - 1], fp[idx]
+    denom = (x1 - x0).clamp_min(torch.finfo(x.dtype).eps)
+    w = (x - x0) / denom
+    return y0 + w * (y1 - y0)
+
+
+def _sw_quantiles_on_grid(projections, grid):
+    """Per-slice empirical quantiles of [K, S] projections sampled at [Q] grid -> [S, Q]."""
+    k = projections.shape[0]
+    srt = projections.sort(dim=0).values
+    if k == 1:
+        sample_q = torch.zeros(1, device=projections.device, dtype=projections.dtype)
+    else:
+        sample_q = torch.linspace(0.0, 1.0, k, device=projections.device, dtype=projections.dtype)
+    out = torch.empty(srt.shape[1], grid.shape[0], device=projections.device, dtype=projections.dtype)
+    for s in range(srt.shape[1]):  # S modest (~256); torch has no batched 1-D interp
+        out[s] = _sw_interp(grid, sample_q, srt[:, s])
+    return out
+
+
+def sliced_wasserstein(pred, target, n_slices=256, p=2, generator=None, n_quantiles=None):
+    """Sliced p-Wasserstein distance between two latent point clouds.
+
+    pred   : [N, d] predicted samples (carries gradient).
+    target : [M, d] target samples (typically detached / no grad).
+    Returns a scalar: ~0 for identical clouds, > 0 for shifted ones.
+    """
+    assert pred.dim() == 2 and target.dim() == 2, "pred/target must be [*, d]"
+    assert pred.shape[1] == target.shape[1], "pred/target dims differ"
+    d = pred.shape[1]
+    directions = torch.randn(d, n_slices, device=pred.device, dtype=pred.dtype, generator=generator)
+    directions = directions / directions.norm(dim=0, keepdim=True).clamp_min(torch.finfo(pred.dtype).eps)
+    proj_p = pred @ directions      # [N, S]
+    proj_t = target @ directions    # [M, S]
+    if pred.shape[0] == target.shape[0]:
+        a = proj_p.sort(dim=0).values
+        b = proj_t.sort(dim=0).values
+    else:
+        q = n_quantiles or max(pred.shape[0], target.shape[0])
+        grid = torch.linspace(0.0, 1.0, q, device=pred.device, dtype=pred.dtype)
+        a = _sw_quantiles_on_grid(proj_p, grid).t()
+        b = _sw_quantiles_on_grid(proj_t, grid).t()
+    diff = (a - b).abs()
+    cost = diff.mean(dim=0) if p == 1 else diff.pow(p).mean(dim=0).pow(1.0 / p)
+    return cost.mean()
+
+
+def grouped_sliced_wasserstein(pred, target, groups, n_slices=256, min_size=2):
+    """Mean sliced-Wasserstein over strata (eb_jepa's per-(cell_line, plate) OT idea).
+
+    For each unique group id (here a (drug, cell_line) stratum), match the predicted
+    vs true perturbed point clouds at the DISTRIBUTION level — not pairwise — so the
+    loss no longer depends on the arbitrary control->perturbed pseudo-pairing. The
+    target cloud is detached (fixed arrival distribution). Strata smaller than
+    min_size are skipped; returns 0 if no valid stratum in the batch.
+    """
+    total = pred.new_tensor(0.0)
+    k = 0
+    for g in torch.unique(groups):
+        m = groups == g
+        if int(m.sum()) < min_size:
+            continue
+        total = total + sliced_wasserstein(pred[m], target[m].detach(), n_slices=n_slices)
+        k += 1
+    return total / k if k else pred.new_tensor(0.0)

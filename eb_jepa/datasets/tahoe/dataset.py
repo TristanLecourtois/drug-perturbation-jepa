@@ -27,6 +27,7 @@ class TahoeConfig:
     val_fraction: float = 0.2
     seed: int = 0
     split: str = "train"        # "train" | "val"
+    pathways_path: str = ""     # optional pathways.pt {membership[K,M], names}; ""=KMeans modules
 
 
 class TahoeDataset(Dataset):
@@ -49,11 +50,24 @@ class TahoeDataset(Dataset):
         self.cl_names = blob["cl_names"]; self.drug_fp = blob["drug_fp"]
         self.K = self.X.shape[1]
 
-        # per-cell pathway descriptor = mean (standardized) expression per co-expression module
-        self.modules = blob["modules"]; self.n_modules = int(blob["n_modules"])
-        onehot = torch.zeros(self.K, self.n_modules)
-        onehot[torch.arange(self.K), self.modules] = 1.0
-        self.P = (self.X @ onehot) / onehot.sum(0).clamp_min(1.0)  # [N, M]
+        # per-cell pathway descriptor = mean (standardized) expression per program.
+        # Programs are EITHER real MSigDB Hallmark sets (if a pathways.pt is given) OR
+        # the data-driven KMeans co-expression modules baked into the cache.
+        if cfg.pathways_path and os.path.exists(cfg.pathways_path):
+            pw = torch.load(cfg.pathways_path, weights_only=False)
+            membership = pw["membership"].float()                 # [K, M] (overlapping)
+            assert membership.shape[0] == self.K, \
+                f"pathways K={membership.shape[0]} != panel K={self.K} (rebuild on this cache)"
+            self.pathway_names = pw.get("names")
+            self.pathway_kind = "hallmark"
+        else:
+            self.modules = blob["modules"]                        # [K] KMeans module id per gene
+            membership = torch.zeros(self.K, int(blob["n_modules"]))
+            membership[torch.arange(self.K), self.modules] = 1.0  # one-hot
+            self.pathway_names = None
+            self.pathway_kind = "kmeans"
+        self.n_modules = membership.shape[1]
+        self.P = (self.X @ membership) / membership.sum(0).clamp_min(1.0)  # [N, M] activity
 
         rng = np.random.default_rng(cfg.seed)
         idx = rng.permutation(len(self.X))

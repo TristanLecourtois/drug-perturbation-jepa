@@ -83,7 +83,8 @@ def run(fname, overrides):
     torch.manual_seed(cfg.meta.seed); np.random.seed(cfg.meta.seed)
 
     dcfg = TahoeConfig(cache_path=cfg.data.cache_path, drop_frac=0.0, noise_std=0.0,
-                       val_fraction=cfg.data.val_fraction, seed=cfg.meta.seed)
+                       val_fraction=cfg.data.val_fraction, seed=cfg.meta.seed,
+                       pathways_path=cfg.data.get("pathways", ""))
     tr, va, _, _ = make_loaders(dcfg, batch_size=cfg.data.batch_size)
     K, D = tr.K, cfg.model.dstc
     Xtr, Xva = tr.X[tr.ids], va.X[va.ids]                  # standardized expression

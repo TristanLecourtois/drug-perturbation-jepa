@@ -237,3 +237,29 @@ On évalue **deux choses séparément** :
 - [ ] Charger `tahoe_ground.pt` (encodeur étape 1) **gelé** dans `perturb.py` (E3).
 - [ ] Câbler baselines manquantes : **SetTransformer random-init gelé** (probe) + **régression linéaire** (skill).
 - [ ] Ablation `skill(E1) vs E2 vs E3` + reporter `(F1, skill)` ensemble.
+
+---
+
+## 11. Porté depuis eb_jepa (base) — objectif de transport optimal (sliced-Wasserstein)
+
+**Pourquoi.** Tahoe n'a **pas** de paires contrôle/perturbé réelles, seulement les deux
+*distributions*. Notre appariement (DMSO aléatoire / centroïde) est une approximation. `eb_jepa`
+résout ça proprement par **transport optimal** : on matche le nuage **prédit** au nuage **vrai**
+des cellules traitées, par **sliced-Wasserstein** (projection sur N directions aléatoires + distance
+de Wasserstein 1-D triée), **par strate** `(drug, cell_line)` — niveau distribution, pas paire.
+
+**Ce qui a été ajouté (cette session) :**
+| Fichier | Changement |
+|---|---|
+| `eb_jepa/losses.py` | `sliced_wasserstein(pred, target, n_slices, p)` + `grouped_sliced_wasserstein(pred, target, groups)` (porté de `eb_jepa/singlecell/perturbator/losses.py`, dépend de torch seul). |
+| `examples/tahoe/perturb.py` | terme optionnel `loss.ot_coeff` (strate = `drug*n_lines + cell_line`), loggé `ot=…`. `0.0` = comportement pairwise d'origine. |
+| `examples/tahoe/cfgs/perturb.yaml` | `ot_coeff: 0.5`, `ot_slices: 256`. |
+| `examples/tahoe/experiments.py` | variantes d'ablation **`+ot`** et **`full+ot`** (strate = drug). |
+
+**À mesurer (honnête, ablation déjà câblée) :** `full` vs `full+ot` sur le couple **`(probe F1, skill)`**
+× 3 seeds. Hypothèse : l'OT améliore le skill *vs mean-shift* sans dégrader la décodabilité (probe).
+
+**Non porté (volontairement — incompatible avec le design « encoder gelé » sur Dalia) :** transformer
+gène-token from-scratch, embeddings **Evo2 (ADN)** / **ESMC** précalculés (caches lourds + 8×B200),
+étude scaling-laws `sub14`. La modalité **ADN/Evo2** reste le seul vrai différenciateur de la base non
+repris (cf. §1 — notre `SetTransformer` couvre déjà ESM2 + KGE + scGPT côté design).

@@ -18,7 +18,7 @@ mean-shift baselines (skill = baseline_MSE / our_MSE, >1 is better).
 import argparse, json, os
 import numpy as np, torch, torch.nn as nn, torch.nn.functional as F
 from eb_jepa.architectures import RNNPredictor, InverseDynamicsModel
-from eb_jepa.losses import PathwayCoherenceLoss, PerturbationSignatureLoss
+from eb_jepa.losses import PathwayCoherenceLoss, PerturbationSignatureLoss, grouped_sliced_wasserstein
 
 
 def build_pairs(blob, fp_table, action, max_cells, holdout_drugs, seed):
@@ -136,6 +136,8 @@ def train_one(data, device, cfg):
             if cfg["path"] > 0:
                 P = (zp @ _modblob);  loss = loss + cfg["path"] * path(ph, P)
             if idm is not None: loss = loss + cfg["idm"] * F.mse_loss(idm(zc, zp), a)
+            # eb_jepa OT: distribution-level match (per-drug stratum) instead of pure pairwise MSE
+            if cfg.get("ot", 0) > 0: loss = loss + cfg["ot"] * grouped_sliced_wasserstein(ph, zp, d)
             opt.zero_grad(); loss.backward(); opt.step()
         m = evaluate(va)
         if m["skill_meanshift"] > best["skill_meanshift"]:
@@ -176,6 +178,8 @@ def main():
         "+pathway":      dict(sig=0, path=1, idm=0),
         "+perturbsig":   dict(sig=1, path=0, idm=0),
         "full":          dict(sig=1, path=1, idm=0),
+        "+ot":           dict(sig=0, path=0, idm=0, ot=0.5),   # eb_jepa sliced-Wasserstein OT alone
+        "full+ot":       dict(sig=1, path=1, idm=0, ot=0.5),   # biology losses + OT distribution match
         "IDM(known)":    dict(sig=0, path=0, idm=1),
     }
     abl = {}

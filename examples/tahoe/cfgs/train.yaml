@@ -8,6 +8,8 @@ data:
   noise_std: 0.1
   val_fraction: 0.2
   batch_size: 512
+  pathways: ""         # path to pathways.pt (real MSigDB Hallmark programs); ""=KMeans modules
+  # gene_sources: ""   # path to gene_sources.pt (scGPT/KGE/ESM2/Evo2); used by encoder=settransformer
 
 model:
   henc: 512            # encoder hidden width

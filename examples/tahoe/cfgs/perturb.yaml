@@ -12,6 +12,9 @@ loss:
   sig_coeff: 1.0       # PerturbationSignatureLoss (drug-signature consistency) -- biology
   path_coeff: 1.0      # PathwayCoherenceLoss (program structure)               -- biology
   cos_coeff: 1.0       # JEPA-DNA latent cosine alignment (set 0.0 for MSE-only baseline ablation)
+  ot_coeff: 0.5        # eb_jepa sliced-Wasserstein OT: match predicted vs true perturbed
+                       # DISTRIBUTION per (drug, cell_line) stratum (0.0 = off, pure pairwise)
+  ot_slices: 256       # random directions for the sliced-Wasserstein estimate
 
 model:
   layers: 1            # predictor (GRU) depth -- JEPA-DNA: predictor depth is the key knob

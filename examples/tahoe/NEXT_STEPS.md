@@ -80,6 +80,12 @@ Brancher via le config : `data.gene_sources=<chemin .pt>` où le `.pt` = `{name:
 > Résultat **nul ou négatif = OK et publiable** : « la fusion de sources n'aide pas au-delà de
 > l'encoder appris » est un finding honnête (cf. le finding de collapse du microbiome).
 
+> ✅ **Scaffolding fait.** Le builder `eb_jepa/datasets/tahoe/precompute_gene_sources.py` + la cible
+> `make gene_sources` produisent le `gene_sources.pt` aligné sur `cache['panel']` (zéro pour les
+> gènes absents), avec un adaptateur par source (scGPT / KGE / ESM2 / Evo2) qui se **skip** proprement
+> si l'artefact manque. Validé end-to-end sans download par `make smoke_gene_sources`. Il ne reste qu'à
+> **déposer les artefacts** (checkpoints / tables) et relancer la commande — voir l'en-tête du builder.
+
 ### Variante côté ACTION (plus rapide à obtenir, sans download lourd)
 On a déjà `pubchem_cid` → fusionner plusieurs représentations du **médicament** :
 - [ ] fingerprint Morgan (on l'a) + descripteurs physico-chimiques RDKit (gratuits, calculables).

@@ -75,11 +75,11 @@ def run(fname, overrides):
 
     dcfg = TahoeConfig(cache_path=cfg.data.cache_path, drop_frac=cfg.data.drop_frac,
                        noise_std=cfg.data.noise_std, val_fraction=cfg.data.val_fraction,
-                       seed=cfg.meta.seed)
+                       seed=cfg.meta.seed, pathways_path=cfg.data.get("pathways", ""))
     tr, va, train_loader, val_loader = make_loaders(dcfg, batch_size=cfg.data.batch_size)
     K, D = tr.K, cfg.model.dstc
     print(f"== tahoe-jepa | device={device} | cells train={len(tr)} val={len(va)} | "
-          f"genes={K} modules={tr.n_modules} reg={cfg.loss.reg} ==")
+          f"genes={K} pathways={tr.n_modules}({tr.pathway_kind}) reg={cfg.loss.reg} ==")
 
     enc_kind = cfg.model.get("encoder", "mlp")
     if enc_kind == "settransformer":

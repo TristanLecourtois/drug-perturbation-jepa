@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tahoe-JEPA — paper figures</title>
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(','\\)']] }, svg: { fontCache: 'global' } };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" id="MathJax-script" async></script>
+<style>
+  :root{
+    --frozen:#eceff1; --frozen-b:#90a4ae;
+    --train:#e7f4ea;  --train-b:#43a047;
+    --data:#eaf1fb;   --data-b:#5b8def;
+    --loss:#fff3e0;   --loss-b:#fb8c00;
+    --ink:#1d2530; --mut:#5f6b7a; --line:#9aa6b2; --mask:#14161b;
+    --scgpt:#2c5f9e; --esm2:#8fb8de; --ncbi:#e8d39a; --uniprot:#e0992f; --kge:#cf5b48; --fb:#6b6b6b;
+  }
+  *{box-sizing:border-box}
+  body{font-family:"Inter",-apple-system,"Helvetica Neue",Arial,sans-serif;
+       color:var(--ink); margin:0; padding:34px 26px; background:#fff; -webkit-font-smoothing:antialiased}
+  h1{font-size:14px;font-weight:600;letter-spacing:.03em;margin:0 0 14px;color:var(--mut);text-transform:uppercase}
+  .cap{font-size:12.5px;color:var(--mut);margin:0 0 14px;line-height:1.45}
+  .cap b{color:var(--ink)}
+  .col{display:flex;flex-direction:column;align-items:center}
+  .row{display:flex;gap:14px;justify-content:center;align-items:stretch;flex-wrap:wrap}
+  .node{border:1.4px solid var(--line);border-radius:10px;padding:6px 12px;background:#fff;
+        text-align:center;font-size:12.5px;min-width:84px;line-height:1.3;box-shadow:0 1px 2px rgba(20,30,50,.05)}
+  .node small{display:block;color:var(--mut);font-size:10px;margin-top:2px}
+  .frozen{background:var(--frozen);border-color:var(--frozen-b)}
+  .train {background:var(--train); border-color:var(--train-b)}
+  .data  {background:var(--data);  border-color:var(--data-b)}
+  .loss  {background:var(--loss);  border-color:var(--loss-b);min-width:0;font-size:12.5px}
+  .a{width:0;height:28px;border-left:2px solid var(--line);position:relative;margin:1px 0}
+  .a::after{content:"";position:absolute;bottom:-2px;left:-5px;border-left:6px solid transparent;
+            border-right:6px solid transparent;border-top:8px solid var(--line)}
+  .a.dash{border-left:2px dashed var(--line)}
+  .ema{font-size:10.5px;color:var(--train-b);white-space:nowrap;text-align:center}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin:6px 0 22px;font-size:11.5px;color:var(--mut)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .chip{width:14px;height:14px;border-radius:4px;border:1.4px solid}
+  .note{font-size:11px;color:var(--mut);margin-top:8px}
+  hr{border:none;border-top:1px solid #e8edf2;margin:30px 0 24px}
+  .frz-badge{font-size:10px;color:var(--frozen-b);border:1px solid var(--frozen-b);border-radius:999px;padding:1px 7px}
+  .two{display:flex;gap:40px;flex-wrap:wrap;align-items:flex-start;margin-bottom:8px}
+  .fig{flex:1 1 380px;max-width:560px}
+
+  /* embedding vector (heatmap strip) */
+  .emb{display:flex;gap:2px;padding:3px;border-radius:5px;background:#fff;border:1px solid #d4dbe3}
+  .ecell{width:11px;height:17px;border-radius:2px}
+  /* drug fingerprint (binary bits) */
+  .fp{display:flex;gap:2px}
+  .fpcell{width:10px;height:10px;border-radius:2px;border:1px solid #b9c2cc}
+  .fpcell.on{background:#2b3340;border-color:#2b3340}
+  /* gene sequence */
+  .strip{display:flex;gap:3px;padding:5px;border:1.2px solid var(--data-b);border-radius:9px;background:var(--data)}
+  .gene{width:21px;height:28px;border-radius:4px;display:flex;align-items:flex-end;justify-content:center;
+        font-size:7.5px;font-weight:700;padding-bottom:2px;position:relative}
+  .gene.mask{background:var(--mask)!important;color:transparent}
+  .gene.mask::before{content:"";position:absolute;inset:0;border-radius:4px;
+        background:repeating-linear-gradient(45deg,#23262e 0 4px,#14161b 4px 8px)}
+  .gene.hl{outline:2.5px solid #e0992f;outline-offset:1px;z-index:2}
+  .seqttl{font-size:11px;color:var(--mut);margin-bottom:4px;text-align:center}
+  .seqcol{display:flex;flex-direction:column;align-items:center}
+
+  /* loss explainer mini-modules */
+  .explain{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:10px}
+  .emod{border:1.2px solid var(--loss-b);border-radius:10px;background:#fffdf7;padding:8px 10px;max-width:230px}
+  .emod .et{font-size:10.5px;font-weight:700;color:#c77f1f;text-transform:uppercase;letter-spacing:.03em;margin-bottom:5px}
+  .emod p{font-size:10.8px;color:var(--mut);margin:5px 0 0;line-height:1.4}
+
+  /* zoom bubble + connector */
+  .bwrap{display:flex;gap:0;align-items:center;flex-wrap:nowrap}
+  .cone{flex:0 0 56px}
+  .zoom{border:1.6px dashed #e0992f;border-radius:16px;padding:12px 14px;background:#fffdf7;
+        box-shadow:0 2px 10px rgba(224,153,47,.12);min-width:250px}
+  .zoom .ztitle{font-size:10.5px;color:#c77f1f;text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin-bottom:8px;text-align:center}
+  .srcrow{display:flex;align-items:center;gap:8px;margin:3px 0}
+  .srclab{width:62px;text-align:right;font-size:10.5px;font-weight:700}
+  .scell{width:54px;height:15px;border-radius:3px;border:1px solid rgba(0,0,0,.12)}
+  .scell.miss{background:#fff;border:1px solid var(--data-b);
+        background-image:repeating-linear-gradient(45deg,#cdddf5 0 3px,#fff 3px 6px)}
+  .scell.fb{background:var(--fb)}
+  .srcbar{height:13px;border-radius:3px;border:1px solid rgba(0,0,0,.10)}
+  .srcbar.miss{border:1px solid var(--data-b);
+        background-image:repeating-linear-gradient(45deg,#cdddf5 0 3px,#fff 3px 6px)}
+  .rcell{width:18px;height:13px;border-radius:3px;border:1px solid rgba(0,0,0,.12)}
+  .rcell.fb{background:var(--fb)}
+  .stagebar{display:flex;flex-direction:column;align-items:center;gap:2px;margin:5px 0}
+  .opbox{border:1.2px solid var(--line);border-radius:7px;background:#f3f5fa;padding:2px 9px;font-size:10.5px;font-weight:600;white-space:nowrap}
+  .srclab2{width:40px;text-align:right;font-size:9px;font-weight:700}
+  .har{color:var(--line);font-weight:700;font-size:14px;padding:0 1px}
+  .emaconn{display:flex;flex-direction:column;align-items:center;gap:3px;margin-top:30px}
+  .emalab{font-size:10px;color:var(--train-b);font-weight:700}
+  .fuse{font-size:11.5px;color:var(--ink);text-align:center;margin:6px 0}
+  .tok{display:flex;gap:3px;justify-content:center;margin-top:4px}
+  .tok i{width:14px;height:14px;border-radius:3px;background:#dfe7f3;border:1px solid var(--data-b)}
+</style>
+</head>
+<body>
+
+<div class="legend">
+  <span><i class="chip" style="background:var(--frozen);border-color:var(--frozen-b)"></i> frozen</span>
+  <span><i class="chip" style="background:var(--train);border-color:var(--train-b)"></i> trained</span>
+  <span><i class="chip" style="background:var(--data);border-color:var(--data-b)"></i> data / state</span>
+  <span><i class="chip" style="background:var(--loss);border-color:var(--loss-b)"></i> objective</span>
+  <span><i class="chip" style="background:var(--mask);border-color:var(--mask)"></i> masked gene</span>
+  <span><i class="chip" style="background-image:repeating-linear-gradient(45deg,#cdddf5 0 3px,#fff 3px 6px);border-color:var(--data-b)"></i> missing source</span>
+  <span><i class="chip" style="background:var(--fb);border-color:var(--fb)"></i> learned fallback</span>
+</div>
+
+<!-- ============ FIGURE (a) — WORLD MODEL (with visual embeddings + loss explainers) ============ -->
+<p class="cap"><b>(a) Drug-perturbation world model.</b> A <b>frozen</b> cell encoder; an action-conditioned
+   predictor maps a control cell to its perturbed state <i>in latent space</i>. States are MosaicFM embeddings;
+   the action is a drug fingerprint. Two biological priors shape the latent (explained below the loss).</p>
+
+<div class="col">
+  <div class="row" style="align-items:flex-end;gap:24px">
+    <div class="node data">\(z_{\text{ctrl}}\) — control<div class="emb" id="emb-ctrl" style="margin-top:5px"></div><small>frozen embedding</small></div>
+    <div class="node data">\(a\) — drug
+      <div style="display:flex;align-items:center;gap:6px;justify-content:center;margin-top:5px">
+        <svg width="26" height="26" viewBox="0 0 26 26"><polygon points="13,3 22,8 22,18 13,23 4,18 4,8" fill="none" stroke="#7a5cff" stroke-width="1.6"/><line x1="13" y1="3" x2="13" y2="0.5" stroke="#7a5cff" stroke-width="1.6"/><circle cx="22" cy="8" r="1.6" fill="#7a5cff"/></svg>
+        <div class="fp" id="fp-drug"></div>
+      </div><small>Morgan fingerprint</small></div>
+    <div class="node data">\(z_{\text{pert}}\) — target<div class="emb" id="emb-pert" style="margin-top:5px"></div><small>real perturbed</small></div>
+  </div>
+  <div class="a"></div>
+  <div class="node frozen">Frozen encoder \(f\)<small>state = MosaicFM embedding</small></div>
+  <div class="a"></div>
+  <div class="node train">Predictor \(g_\phi(z_{\text{ctrl}},\,a)\)<small>GRU, action-conditioned</small></div>
+  <div class="a"></div>
+  <div class="node data">\(\hat z_{\text{pert}}\) — prediction<div class="emb" id="emb-pred" style="margin-top:5px"></div></div>
+  <div class="a"></div>
+  <div class="node loss">
+    \(\;\mathcal{E}=\lVert g_\phi(z_{\text{ctrl}},a)-z_{\text{pert}}\rVert^2
+    \;+\;\lambda_{\cos}\big(1-\cos(\hat z_{\text{pert}},z_{\text{pert}})\big)
+    \;+\;\lambda_s\,\mathcal{L}_{\text{sig}}\;+\;\lambda_p\,\mathcal{L}_{\text{path}}\;\)
+  </div>
+
+  <!-- explainer mini-modules for the two biological priors -->
+  <div class="explain">
+    <div class="emod">
+      <div class="et">\(\mathcal{L}_{\text{sig}}\) — drug signature</div>
+      <svg width="150" height="74" viewBox="0 0 150 74">
+        <circle cx="20" cy="60" r="2.6" fill="#5f6b7a"/>
+        <!-- same drug = same direction (green) -->
+        <line x1="20" y1="60" x2="80" y2="20" stroke="#43a047" stroke-width="2.2" marker-end="url(#ag)"/>
+        <line x1="20" y1="60" x2="74" y2="26" stroke="#43a047" stroke-width="2.2" marker-end="url(#ag)"/>
+        <!-- other drug = other direction (red) -->
+        <line x1="20" y1="60" x2="120" y2="54" stroke="#cf5b48" stroke-width="2.2" marker-end="url(#ar)"/>
+        <defs>
+          <marker id="ag" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#43a047"/></marker>
+          <marker id="ar" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#cf5b48"/></marker>
+        </defs>
+      </svg>
+      <p>Pulls the predicted shift \(\hat z_{\text{pert}}-z_{\text{ctrl}}\) of <b>same-drug</b> cells to the same
+         direction (green), apart from other drugs (red) ⇒ captures <b>drug-specific</b> biology.</p>
+    </div>
+    <div class="emod">
+      <div class="et">\(\mathcal{L}_{\text{path}}\) — pathway coherence</div>
+      <svg width="150" height="74" viewBox="0 0 150 74">
+        <text x="6" y="14" font-size="9" fill="#5f6b7a">dist in latent</text>
+        <g id="hm1"></g>
+        <text x="64" y="44" font-size="13" fill="#5f6b7a">≈</text>
+        <text x="86" y="14" font-size="9" fill="#5f6b7a">dist in pathways</text>
+        <g id="hm2"></g>
+      </svg>
+      <p>Matches pairwise <b>latent distances</b> to <b>gene-program (module) activity</b> distances ⇒ embeds
+         coordinated pathway structure, not batch noise.</p>
+    </div>
+  </div>
+  <p class="note">Trained: predictor only. Skill \(=\mathrm{MSE}_{\text{base}}/\mathrm{MSE}_{\text{pred}}\) vs.
+     <i>no-effect</i> (\(\hat z\!=\!z_{\text{ctrl}}\)) &amp; <i>mean-shift</i>.</p>
+</div>
+
+<hr>
+
+<!-- ============ FIGURE (b) — MASKED-GENE GROUNDING + ZOOM ============ -->
+<p class="cap"><b>(b) Masked-gene latent grounding</b> (JEPA-DNA idea, ported to RNA). Each gene is a token; a
+   random subset is <b>masked</b>. Predict the full-cell latent from the masked view. <i>Right:</i> zoom on one
+   gene token — its init fuses several <b>frozen</b> source embeddings with a learned fallback for missing sources.</p>
+
+<div class="col" id="bcol" style="position:relative;align-items:center">
+  <svg id="connectors" style="position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none"><defs><marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#9aa6b2"/></marker></defs></svg>
+
+  <!-- TWO PARALLEL PATHS: masked (student) and full (teacher), each with its OWN gene-init module -->
+  <div id="bpaths" style="display:flex;gap:22px;align-items:flex-start;justify-content:center">
+
+    <!-- ===== MASKED PATH (student) ===== -->
+    <div class="seqcol">
+      <div class="seqttl">masked view → student</div>
+      <div class="strip" id="strip-mask"></div>
+      <div class="a"></div>
+      <div class="node train" id="ginit1">Per-gene token init<small>genes → tokens \(t_g\)</small></div>
+      <div class="a"></div>
+      <div class="node train">\(f_\theta\) SetTransformer<small>online · Perceiver</small></div>
+      <div class="a"></div><div class="node data">\(z_{\text{ctx}}^{128}\)</div>
+      <div class="a"></div><div class="node train">Predictor \(g_\phi\)</div>
+      <div class="a"></div><div class="node data" id="zhat">\(\hat z\)</div>
+    </div>
+
+    <!-- EMA arrow between the two encoders (student -> teacher) -->
+    <div class="emaconn" style="margin-top:188px">
+      <div class="emalab">EMA</div>
+      <svg width="62" height="12"><line x1="2" y1="6" x2="52" y2="6" stroke="#43a047" stroke-width="1.8" stroke-dasharray="4 3"/><path d="M52,2 L62,6 L52,10 z" fill="#43a047"/></svg>
+      <div class="emalab" style="font-weight:400;font-size:9px">\(\theta_\xi\!\leftarrow\!\tau\theta_\xi+(1\!-\!\tau)\theta_\theta\)</div>
+    </div>
+
+    <!-- ===== FULL PATH (teacher) ===== -->
+    <div class="seqcol">
+      <div class="seqttl">full view → teacher</div>
+      <div class="strip" id="strip-full"></div>
+      <div class="a"></div>
+      <div class="node train" id="ginit2">Per-gene token init<small>genes → tokens \(t_g\)</small></div>
+      <div class="a"></div>
+      <div class="node frozen">\(f_\xi\) target<small>EMA, no grad</small></div>
+      <div class="a"></div><div class="node data" id="ztgt">\(z_{\text{tgt}}\)<small>stop-grad</small></div>
+    </div>
+
+    <!-- ZOOM: detail of a gene-init module; dashed connectors to BOTH init modules drawn in JS -->
+    <div style="margin-top:120px;display:flex;align-items:center">
+      <div class="zoom" id="zoombox">
+        <div class="ztitle">zoom — gene-token init \(t_g\) · multi-source fusion</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <div class="note" style="margin:0 0 1px">sources \(e_s\)</div>
+            <div class="srcrow"><span class="srclab2" style="color:var(--scgpt)">scGPT</span><i class="srcbar" style="width:40px;background:var(--scgpt)"></i></div>
+            <div class="srcrow"><span class="srclab2" style="color:var(--esm2)">ESM2</span><i class="srcbar" style="width:30px;background:var(--esm2)"></i></div>
+            <div class="srcrow"><span class="srclab2" style="color:#b59a52">NCBI</span><i class="srcbar" style="width:24px;background:var(--ncbi)"></i></div>
+            <div class="srcrow"><span class="srclab2" style="color:var(--uniprot)">UniPr</span><i class="srcbar miss" style="width:20px"></i></div>
+            <div class="srcrow"><span class="srclab2" style="color:var(--kge)">KGE</span><i class="srcbar" style="width:18px;background:var(--kge)"></i></div>
+          </div>
+          <span class="har">→</span><span class="opbox">PCA</span><span class="har">→</span>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <div class="note" style="margin:0 0 1px">reduced</div>
+            <div class="srcrow"><i class="rcell" style="background:var(--scgpt)"></i></div>
+            <div class="srcrow"><i class="rcell" style="background:var(--esm2)"></i></div>
+            <div class="srcrow"><i class="rcell" style="background:var(--ncbi)"></i></div>
+            <div class="srcrow"><i class="rcell fb"></i><span class="note" style="margin:0">fb</span></div>
+            <div class="srcrow"><i class="rcell" style="background:var(--kge)"></i></div>
+          </div>
+          <span class="har">→</span><span class="opbox">MLP</span><span class="har">→</span>
+          <div style="text-align:center">
+            <div class="note" style="margin:0 0 1px">token</div>
+            <div class="tok" style="flex-direction:column;gap:2px"><i></i><i></i><i></i><i></i></div>
+          </div>
+        </div>
+        <div class="fuse" style="margin-top:7px">\(t_g=\mathrm{id}(g)+\textstyle\sum_s W_s\,e_s[g]+W_v\,x_g\)</div>
+        <div class="note" style="text-align:center">hatched = missing source · gray = learned fallback</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="height:10px"></div>
+  <div class="node loss" id="lossbox" style="position:relative;left:-90px">\(\mathcal{L}=\underbrace{1-\cos(\hat z,z_{\text{tgt}})}_{\text{latent align}}
+      +\lambda_v\,\mathrm{Var}+\lambda_c\,\mathrm{Cov}\)</div>
+</div>
+
+<hr>
+
+<!-- ============ FIGURE (c) — ENCODER ABLATION ============ -->
+<p class="cap"><b>(c) Encoder ablation — same world-model, swap the frozen encoder.</b> The predictor and metric are
+   identical; only \(f\) changes. Skill is a ratio (scale-invariant) ⇒ comparable across latent spaces.</p>
+
+<div class="row" style="justify-content:flex-start;gap:18px;align-items:center;margin-bottom:10px">
+  <div class="col" style="gap:6px">
+    <div class="node frozen" style="border-color:#2c5f9e">MosaicFM-3B<small>foundation · 2560-d</small></div>
+    <div class="node frozen" style="border-color:var(--train-b)">SetTransformer<small>grounded (b) · 128-d</small></div>
+    <div class="node train">SetTransformer<small>end-to-end</small></div>
+  </div>
+  <div class="col"><span class="ema" style="color:var(--mut)">swap \(f\)</span>
+    <svg width="46" height="14"><line x1="2" y1="7" x2="36" y2="7" stroke="#9aa6b2" stroke-width="1.6"/><path d="M36,3 L46,7 L36,11 z" fill="#9aa6b2"/></svg></div>
+  <div class="node train">Predictor \(g_\phi(z_{\text{ctrl}},a)\)<small>shared</small></div>
+  <div class="col"><svg width="46" height="14"><line x1="2" y1="7" x2="36" y2="7" stroke="#9aa6b2" stroke-width="1.6"/><path d="M36,3 L46,7 L36,11 z" fill="#9aa6b2"/></svg></div>
+  <div class="node loss" style="min-width:120px">skill vs mean-shift</div>
+</div>
+
+<!-- honest skill bar chart: only MosaicFM is measured -->
+<svg width="470" height="132" viewBox="0 0 470 132" style="max-width:100%">
+  <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+    <rect width="6" height="6" fill="#fff"/><line x1="0" y1="0" x2="0" y2="6" stroke="#b9c2cc" stroke-width="2.5"/></pattern>
+    <marker id="agr" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#43a047"/></marker>
+  </defs>
+  <!-- axis -->
+  <line x1="150" y1="14" x2="150" y2="104" stroke="#cbd2da" stroke-dasharray="4 3"/>
+  <text x="150" y="120" font-size="9" fill="#5f6b7a" text-anchor="middle">1.0 (mean-shift baseline)</text>
+  <text x="430" y="120" font-size="9" fill="#5f6b7a" text-anchor="middle">1.4</text>
+  <line x1="150" y1="104" x2="440" y2="104" stroke="#cbd2da"/>
+  <!-- MosaicFM: measured 1.28 -->
+  <text x="8" y="32" font-size="10" fill="#1d2530" font-weight="700">MosaicFM</text>
+  <rect x="150" y="22" width="196" height="16" rx="3" fill="#43a047"/>
+  <text x="352" y="34" font-size="10" fill="#2e7d32" font-weight="700">1.28× · measured</text>
+  <!-- SetTransformer grounded: pending -->
+  <text x="8" y="62" font-size="10" fill="#1d2530" font-weight="700">SetTr. grounded</text>
+  <rect x="150" y="52" width="120" height="16" rx="3" fill="url(#hatch)" stroke="#b9c2cc"/>
+  <text x="276" y="64" font-size="10" fill="#8a93a0">to measure (E3)</text>
+  <!-- SetTransformer e2e: pending -->
+  <text x="8" y="92" font-size="10" fill="#1d2530" font-weight="700">SetTr. e2e</text>
+  <rect x="150" y="82" width="120" height="16" rx="3" fill="url(#hatch)" stroke="#b9c2cc"/>
+  <text x="276" y="94" font-size="10" fill="#8a93a0">to measure (E2)</text>
+</svg>
+<p class="note">Measured so far: MosaicFM-frozen world model reaches <b>skill 1.28×</b> vs mean-shift (with the cosine
+   term). The grounded/end-to-end SetTransformer encoders are pending a joint raw-gene + embedding cache. No value invented.</p>
+
+<hr>
+<h1>Two-step training</h1>
+<div class="row" style="justify-content:flex-start;gap:8px">
+  <div class="node data">genes</div>
+  <div class="a" style="transform:rotate(-90deg)"></div>
+  <div class="node train">Step 1 — grounding<small>SetTransformer (b)</small></div>
+  <div class="a" style="transform:rotate(-90deg)"></div>
+  <div class="node frozen">encoder \(f^\star\) <span class="frz-badge">freeze</span></div>
+  <div class="a" style="transform:rotate(-90deg)"></div>
+  <div class="node train">Step 2 — world model<small>predictor only (a)</small></div>
+  <div class="a" style="transform:rotate(-90deg)"></div>
+  <div class="node loss">skill vs no-effect / mean-shift</div>
+</div>
+<p class="note">Step 1 pretrains the encoder (self-supervised, no action); Step 2 freezes it and learns the
+   action-conditioned predictor. Encoder ablation: frozen foundation (MosaicFM) vs. grounded SetTransformer.</p>
+
+<hr>
+<h1>Measured results (honest)</h1>
+<div class="row" style="justify-content:flex-start;gap:22px;align-items:stretch">
+
+  <div class="node" style="border-color:var(--loss-b);text-align:left;min-width:230px">
+    <b>1 · Perturbation world model</b><div class="note" style="margin:4px 0">skill vs mean-shift (30 ep)</div>
+    <div style="font-size:12.5px">MSE only &nbsp;<b>1.18×</b><br>+ cosine (JEPA-DNA) &nbsp;<b style="color:var(--train-b)">1.28×</b></div>
+    <div class="note" style="margin-top:4px">latent cosine helps (+9%) ✓</div>
+  </div>
+
+  <div class="node" style="border-color:var(--data-b);text-align:left;min-width:250px">
+    <b>2 · Representation probe (Macro-F1)</b>
+    <table style="font-size:11.5px;border-collapse:collapse;margin-top:5px">
+      <tr style="color:var(--mut)"><td style="padding:1px 8px"></td><td>raw</td><td>PCA</td><td>JEPA</td></tr>
+      <tr><td style="padding:1px 8px">cell_line</td><td>.883</td><td>.927</td><td><b>.932</b></td></tr>
+      <tr><td style="padding:1px 8px">drug</td><td><b>.342</b></td><td>.042</td><td>.019</td></tr>
+      <tr><td style="padding:1px 8px">moa</td><td><b>.523</b></td><td>.129</td><td>.063</td></tr>
+    </table>
+    <div class="note" style="margin-top:4px">learns cell identity, not drug/moa</div>
+  </div>
+
+  <div class="node" style="border-color:var(--frozen-b);text-align:left;min-width:210px">
+    <b>3 · Masked-gene grounding</b>
+    <div class="note" style="margin:4px 0">⚠ run incomplete — stopped ep9</div>
+    <div style="font-size:12px">jepa loss rising (0.009→0.034) = unstable;<br>ep5 probe F1 ≈ 0.</div>
+    <div class="note" style="margin-top:4px">inconclusive — to re-run (no value invented)</div>
+  </div>
+
+</div>
+
+<script>
+  function viridis(t){
+    const s=[[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]];
+    const x=Math.max(0,Math.min(1,t))*(s.length-1),i=Math.floor(x),f=x-i;
+    const a=s[i],b=s[Math.min(i+1,s.length-1)];const c=a.map((v,k)=>Math.round(v+(b[k]-v)*f));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+  // --- (a) embedding strips ---
+  const Zc=[.2,.55,.8,.35,.62,.48,.7,.3,.58,.42];
+  const Zp=Zc.map((v,i)=>Math.min(1,Math.max(0,v+[.3,-.2,-.15,.25,-.1,.2,-.25,.3,-.1,.15][i]))); // perturbed shift
+  const Zhat=Zp.map(v=>Math.min(1,Math.max(0,v+(Math.sin(v*9)*.05)))); // prediction ~ pert
+  function emb(id,arr){const el=document.getElementById(id);arr.forEach(v=>{const d=document.createElement('div');d.className='ecell';d.style.background=viridis(v);el.appendChild(d);});}
+  emb('emb-ctrl',Zc); emb('emb-pert',Zp); emb('emb-pred',Zhat);
+  // drug fingerprint bits
+  const bits=[1,0,0,1,1,0,1,0,0,1,1,0];
+  const fpel=document.getElementById('fp-drug');
+  bits.forEach(b=>{const d=document.createElement('div');d.className='fpcell'+(b?' on':'');fpel.appendChild(d);});
+  // pathway mini heatmaps (two similar 4x4 distance matrices)
+  function heat(gid,ox,seed){const g=document.getElementById(gid);const n=4,c=11;
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){const v=i===j?0:Math.abs(Math.sin((i+1)*(j+2)+seed))*.85+.1;
+      const r=document.createElementNS('http://www.w3.org/2000/svg','rect');
+      r.setAttribute('x',ox+j*c);r.setAttribute('y',20+i*c);r.setAttribute('width',c-1);r.setAttribute('height',c-1);
+      r.setAttribute('fill',viridis(v));r.setAttribute('rx','1');g.appendChild(r);}}
+  heat('hm1',8,.0); heat('hm2',92,.15);
+
+  // --- (b) gene sequences ---
+  const GENES=[["TP53",.82],["EGFR",.31],["MYC",.95],["KRAS",.55],["BRCA1",.18],["CCND1",.74],
+    ["MTOR",.42],["AKT1",.63],["VEGFA",.27],["CDK4",.88],["PTEN",.50],["RB1",.12],
+    ["JUN",.70],["FOS",.38],["HIF1A",.60],["BCL2",.46]];
+  const MASKED=new Set([1,3,6,7,11,13]), HL=2;
+  function buildSeq(id,masked){const el=document.getElementById(id);
+    GENES.forEach(([sym,val],i)=>{const d=document.createElement('div');const isM=masked&&MASKED.has(i);
+      d.className='gene'+(isM?' mask':'')+(!masked&&i===HL?' hl':'');
+      if(!isM){d.style.background=viridis(val);d.textContent=sym.slice(0,4);d.style.color=val>.66?'#0c2233':'#eef';}
+      el.appendChild(d);});}
+  buildSeq('strip-mask',true); buildSeq('strip-full',false);
+
+  // connectors from real positions: zoom <-> right gene-init (dashed orange); z & z_tgt -> loss (solid)
+  function rel(el,cr){const r=el.getBoundingClientRect();return {l:r.left-cr.left,t:r.top-cr.top,r:r.right-cr.left,b:r.bottom-cr.top,cx:r.left-cr.left+r.width/2,cy:r.top-cr.top+r.height/2};}
+  function drawConn(){
+    const c=document.getElementById('bcol'), svg=document.getElementById('connectors');
+    if(!c||!svg) return;
+    [...svg.querySelectorAll('line')].forEach(l=>l.remove());
+    const cr=c.getBoundingClientRect();
+    const line=(x1,y1,x2,y2,dash,mark)=>{const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+      l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2);
+      l.setAttribute('stroke',dash?'#e0992f':'#9aa6b2');l.setAttribute('stroke-width','1.8');
+      if(dash)l.setAttribute('stroke-dasharray','6 4'); if(mark)l.setAttribute('marker-end','url(#arr)');
+      svg.appendChild(l);};
+    const gi=document.getElementById('ginit2'), z=document.getElementById('zoombox');
+    if(gi&&z){const g=rel(gi,cr),b=rel(z,cr); line(g.r,g.cy,b.l,b.t+10,true); line(g.r,g.cy,b.l,b.b-10,true);}
+    const lo=document.getElementById('lossbox');
+    if(lo){const L=rel(lo,cr);
+      const zh=document.getElementById('zhat'); if(zh){const a=rel(zh,cr); line(a.cx,a.b,L.cx-26,L.t,false,true);}
+      const zt2=document.getElementById('ztgt'); if(zt2){const a=rel(zt2,cr); line(a.cx,a.b,L.cx+26,L.t,false,true);}
+    }
+  }
+  window.addEventListener('load',()=>setTimeout(drawConn,250));
+  window.addEventListener('resize',drawConn);
+  if(window.MathJax&&window.MathJax.startup&&window.MathJax.startup.promise){
+    window.MathJax.startup.promise.then(()=>setTimeout(drawConn,80));
+  }
+</script>
+</body>
+</html>
