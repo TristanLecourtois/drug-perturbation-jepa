@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Data scaling</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:20px 28px;background:#fff;color:#1a1a1a}
+  h1{font-size:24px;font-weight:700;color:#1f3a6e;margin:0 0 2px}
+  .sub{font-size:13px;color:#5f6b7a;margin:0 0 6px}
+  .note{font-size:11px;color:#a02020;font-weight:700;margin:2px 0 8px}
+  #chart{width:100%;max-width:1100px;height:680px;margin:auto}
+</style>
+</head>
+<body>
+  <h1>Data scaling — Tahoe cell-state encoder</h1>
+  <div class="sub">training loss (smoothed) vs cells seen · dashed = frontier power law</div>
+  <div class="note">ILLUSTRATIVE TEMPLATE — synthetic curves (replace MODELS data with real training logs)</div>
+  <div id="chart"></div>
+
+<script>
+// ---- 5 models: MosaicFM + SetTransformer at different #transformer layers ----
+// [name, capacity p (0..1), color]
+const MODELS = [
+  ["SetTransformer · 2 layers", 0.15, "#9ecae1"],
+  ["SetTransformer · 4 layers", 0.40, "#4292c6"],
+  ["SetTransformer · 8 layers", 0.68, "#2171b5"],
+  ["SetTransformer · 12 layers",0.88, "#08306b"],
+  ["MosaicFM (foundation)",     1.00, "#e6550d"],
+];
+const A=0.58, E=0.40, START=5.95, N0=600, NMAX=5e6, NPTS=130;
+const lin=(n,a,b)=>Array.from({length:n},(_,i)=>a+(b-a)*i/(n-1));
+const Ns=lin(NPTS,Math.log10(N0),Math.log10(NMAX)).map(v=>10**v);
+const front = N => E + 5.55*Math.pow(N/N0,-A);            // frontier (lower envelope)
+
+const traces=[];
+MODELS.forEach(([name,p,col])=>{
+  const floor=0.44+(1-p)*0.62;                            // deeper model -> lower floor
+  const N50=Math.pow(10,3.55+(1-p)*1.45);                 // deeper model -> drops earlier
+  let prev=null;
+  const y=Ns.map(N=>{
+    let L=floor+(START-floor)/(1+Math.pow(N/N50,1.35));   // sigmoidal drop to floor
+    L=Math.max(L, front(N)*0.97);                         // ride the frontier
+    const frac=(Math.log10(N)-Math.log10(N0))/(Math.log10(NMAX)-Math.log10(N0));
+    let noise=1+(0.03+0.16*frac)*(Math.random()*2-1);     // tail noisier
+    if(Math.random()<0.04) noise*=1+(0.15+0.5*frac)*Math.random();  // occasional spikes
+    L*=noise;
+    prev = prev===null ? L : 0.6*prev+0.4*L;              // light smoothing
+    return prev;
+  });
+  traces.push({x:Ns,y,mode:"lines",name:name,
+    line:{color:col,width:2.4},hoverinfo:"name"});
+});
+// frontier dashed
+traces.push({x:Ns,y:Ns.map(front),mode:"lines",name:`frontier  α=${A}, E=${E}`,
+  line:{color:"#1b2430",width:3,dash:"dash"}});
+
+Plotly.newPlot("chart",traces,{
+  margin:{l:64,r:20,t:10,b:55},
+  xaxis:{title:"cells seen",type:"log",showgrid:true,gridcolor:"#eef1f5",zeroline:false},
+  yaxis:{title:"training loss (smoothed)",type:"log",showgrid:true,gridcolor:"#eef1f5",zeroline:false},
+  legend:{font:{size:10},x:1,xanchor:"right",y:1,bgcolor:"rgba(255,255,255,0.7)"},
+  plot_bgcolor:"#fff",paper_bgcolor:"#fff",font:{family:"Arial",color:"#1a1a1a"}
+},{displayModeBar:false,responsive:true});
+</script>
+</body>
+</html>

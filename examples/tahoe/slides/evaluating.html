@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Evaluating the representation</title>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;margin:0;padding:46px 60px;background:#fff;-webkit-font-smoothing:antialiased}
+  h1{font-size:30px;font-weight:700;color:#1f3a6e;margin:0 0 10px}
+  hr{border:none;border-top:1px solid #d7dde6;margin:0 0 20px}
+  .hdr{font-size:13px;font-weight:700;letter-spacing:.05em;color:#3a5ba0;text-transform:uppercase;margin:18px 0 6px}
+  p{font-size:19px;line-height:1.45;margin:4px 0}
+  .b{font-weight:700;color:#1f3a6e}
+  .dim{color:#777;font-size:15px}
+  table{border-collapse:collapse;margin:6px 0 2px;font-size:19px}
+  td{padding:3px 18px 3px 0}
+  td.v{font-weight:700;color:#1f3a6e}
+  .take{font-size:19px;font-weight:700;margin:14px 0 2px}
+  .foot{font-size:14.5px;color:#555;margin:5px 0}
+  .foot b{color:#1f3a6e}
+</style>
+</head>
+<body>
+  <h1>Evaluating the representation</h1>
+  <hr>
+
+  <div class="hdr">Action recovery</div>
+  <p>Decode the action \(a_t\) from \([\,z_t;\,z_{t+1}\,]\) — frozen encoder, linear probe.</p>
+  <p>\(R^2\): <span class="dim">0.52</span> &nbsp;→&nbsp; <span class="b">0.748</span> with IDM <span class="dim">(collapse regime)</span></p>
+
+  <div class="hdr">Downstream — infant environment, 12 classes (AUC)</div>
+  <table>
+    <tr><td>frozen JEPA + linear probe</td><td class="v">0.896</td></tr>
+    <tr><td>supervised MLP (Susagi)</td><td class="v">0.890</td></tr>
+    <tr><td>+ SIGReg probe / fine-tuned</td><td class="v">0.894 / 0.918</td></tr>
+  </table>
+  <p class="take">→ frozen self-supervised <span class="b">ties</span> supervised; fine-tuning <span class="b">beats</span> it.</p>
+
+  <hr style="margin:22px 0 14px">
+  <p class="foot"><b>On Tahoe</b> — frozen encoder already strong → IDM <b>hurts</b> (\(R^2\) 0.20 → 0.02); helps only on collapse.</p>
+  <p class="foot"><b>Sequencing</b> — protocol stays linearly separable (bal-acc 0.952): the latent keeps the nuisance signal.</p>
+</body>
+</html>

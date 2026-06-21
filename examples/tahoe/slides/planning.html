@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Intervention planning</title>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;margin:0;padding:46px 60px;background:#fff;-webkit-font-smoothing:antialiased}
+  h1{font-size:30px;font-weight:700;color:#1f3a6e;margin:0 0 10px}
+  hr{border:none;border-top:1px solid #d7dde6;margin:0 0 18px}
+  .hdr{font-size:13px;font-weight:700;letter-spacing:.05em;color:#3a5ba0;text-transform:uppercase;margin:14px 0 6px}
+  p{font-size:18px;line-height:1.45;margin:4px 0}
+  .eq{text-align:center;font-size:20px;margin:12px 0 2px}
+  .dim{color:#777;font-size:14.5px;text-align:center;margin:2px 0 0}
+  .head0{text-align:center;font-size:24px;font-weight:700;margin:22px 0 6px}
+  .fail{color:#a02020}
+  .cols{display:flex;gap:34px;margin-top:18px}
+  .col{flex:1;border-top:3px solid #cdd6e4;padding-top:8px}
+  .ctitle{font-size:14px;font-weight:700;color:#3a5ba0;margin:0 0 2px}
+  .cbig{font-size:20px;font-weight:700;margin:0 0 6px}
+  .cbody{font-size:15.5px;color:#555;line-height:1.4}
+  .ok{color:#2e7d32}.no{color:#a02020}
+</style>
+</head>
+<body>
+  <h1>Intervention planning</h1>
+  <hr>
+
+  <div class="hdr">Task</div>
+  <p>From a start \(s_0\), reach a target community \(s^\star\) by optimizing actions \(a_{0:T-1}\) — minimize a latent energy to the target (MPPI):</p>
+  <div class="eq">\(\min_{a_{0:T-1}} \lVert z_T - z^\star \rVert^2 \quad \text{s.t.}\quad z_{t+1}=g_\phi(z_t,a_t),\ \ z^\star=f_\theta(s^\star)\)</div>
+  <p class="dim">energy = squared latent distance to the target</p>
+
+  <div class="head0">Pure-JEPA latent-MPPI: <span class="fail">0% success</span></div>
+
+  <div class="cols">
+    <div class="col">
+      <div class="ctitle">1 · controllability <span class="no">✗</span>→<span class="ok">✓</span></div>
+      <div class="cbig">need full actuation</div>
+      <div class="cbody">oracle fails at K=6 (final 4.09); succeeds at K=24 (0.79).</div>
+    </div>
+    <div class="col">
+      <div class="ctitle">2 · dynamics <span class="ok">✓</span></div>
+      <div class="cbig">the model is faithful</div>
+      <div class="cbody">latent rollout diverges only ~2% over 20 steps.</div>
+    </div>
+    <div class="col">
+      <div class="ctitle">3 · geometry <span class="no">✗</span></div>
+      <div class="cbig">distance is uninformative</div>
+      <div class="cbody">corr(latent dist, true dist) ≈ 0 — the wall.</div>
+    </div>
+  </div>
+</body>
+</html>

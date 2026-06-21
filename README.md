@@ -1,4 +1,4 @@
-<h1 align="center">DynaAMIcs</h1>
+<h1 align="center">DynaAMIcs — a Drug-Perturbation JEPA World-Model</h1>
 
 <p align="center">
   <b>An energy-based JEPA <i>world-model of drug perturbations</i> on Tahoe-100M.</b><br>
@@ -6,7 +6,13 @@
 </p>
 
 <p align="center">
-  Built on <a href="https://github.com/marinabar/eb_jepa">eb-JEPA</a> · Hack The World(s) / Vivatech · single-cell transcriptomics
+  <a href="https://docs.google.com/presentation/d/17WaQSNrnvW2XvhzPFOqw-5u7euWNNd3cDUlr0zF8ey4/edit?usp=sharing"><b>📊 Slides / Presentation</b></a>
+  &nbsp;·&nbsp;
+  Built on <a href="https://github.com/marinabar/eb_jepa">eb-JEPA</a>
+  &nbsp;·&nbsp;
+  Hack The World(s) / Vivatech
+  &nbsp;·&nbsp;
+  single-cell transcriptomics
 </p>
 
 ---

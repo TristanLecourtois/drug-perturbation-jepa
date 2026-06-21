@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keeping the action — slow vs fast features</title>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;margin:0;padding:46px 60px;background:#fff;-webkit-font-smoothing:antialiased}
+  h1{font-family:Arial,Helvetica,sans-serif;font-size:30px;font-weight:700;color:#1f3a6e;margin:0 0 10px}
+  hr{border:none;border-top:1px solid #d7dde6;margin:0 0 22px}
+  .hdr{font-size:13px;font-weight:700;letter-spacing:.05em;color:#3a5ba0;text-transform:uppercase;margin:18px 0 6px}
+  p{font-size:19px;line-height:1.5;margin:4px 0}
+  .kw{font-weight:700;color:#1f3a6e}
+  .act{font-weight:700;color:#2e63c8}
+  .eq{text-align:center;margin:14px 0;font-size:20px}
+  .eq mjx-container{margin:0 26px}
+  .note{font-size:15px;color:#5a5a5a;margin:6px 0 2px}
+</style>
+</head>
+<body>
+  <h1>Keeping the action: slow vs. fast features</h1>
+  <hr>
+
+  <div class="hdr">The problem</div>
+  <p>JEPA latent prediction drifts toward <span class="kw">slow features</span> (Sobal et al., 2022):</p>
+  <p><span class="kw">slow</span> — the community's static identity / initial basin &nbsp;→&nbsp; <b>kept</b></p>
+  <p><span class="kw">fast</span> — the state change and the applied <span class="act">action</span> \(a_t\) &nbsp;→&nbsp; <b>dropped first</b></p>
+
+  <div class="hdr">Solution — inverse-dynamics model</div>
+  <p>Recover the action from two consecutive latents \(z_t = f_\theta(s_t)\):</p>
+  <div class="eq">\(\hat a_t = h_\psi(z_t,\, z_{t+1})\) \(\qquad\) \(\mathcal{L}_{\mathrm{IDM}} = \lVert \hat a_t - a_t \rVert^2\)</div>
+  <p class="note">If the encoder dropped \(a_t\), the IDM cannot recover it &nbsp;⇒&nbsp; the gradient forces \(f_\theta\) to keep it.</p>
+
+  <div class="hdr">Measure — collapse probe</div>
+  <p>Fresh ridge regression on the <b>frozen</b> encoder:</p>
+  <div class="eq">\(\hat a_t = W[\,z_t;\, z_{t+1}\,]\) \(\qquad\) \(R^2_{\mathrm{action}}\) \(\qquad\) \(f_\theta^{\mathrm{rand}} \Rightarrow R^2 \approx 0\)</div>
+</body>
+</html>

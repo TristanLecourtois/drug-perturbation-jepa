@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Closing the loop</title>
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;margin:0;padding:46px 60px;background:#fff;-webkit-font-smoothing:antialiased}
+  h1{font-size:30px;font-weight:700;color:#1f3a6e;margin:0 0 10px}
+  hr{border:none;border-top:1px solid #d7dde6;margin:0 0 20px}
+  .hdr{font-size:13px;font-weight:700;letter-spacing:.05em;color:#3a5ba0;text-transform:uppercase;margin:16px 0 6px}
+  p{font-size:19px;line-height:1.45;margin:4px 0}
+  .b{font-weight:700;color:#1f3a6e}
+  .eq{text-align:center;font-size:21px;margin:12px 0}
+  .row{font-size:19px;line-height:1.6;margin:3px 0}
+  .no{color:#a02020;font-weight:700}
+  .ok{color:#2e7d32;font-weight:700}
+  .win{color:#2e7d32;font-weight:700}
+  .res{text-align:center;font-size:20px;font-weight:700;margin:10px 0 2px}
+  .dim{text-align:center;color:#777;font-size:14.5px;line-height:1.4;margin:2px 0}
+</style>
+</head>
+<body>
+  <h1>Closing the loop</h1>
+  <hr>
+
+  <p>The wall is the <span class="b">geometry</span>: latent distance ≠ the distance we plan with.</p>
+
+  <div class="hdr">Idea — make the latent isometric</div>
+  <p>Add a loss so latent distances reflect true-state distances (up to a scale \(\alpha\)):</p>
+  <div class="eq">\(\mathcal{L}_{\mathrm{iso}} = \big(\,\lVert z_a - z_b\rVert - \alpha\,\lVert s_a - s_b\rVert\,\big)^2\)</div>
+
+  <div class="hdr">We tried</div>
+  <div class="row"><span class="no">✗</span> stronger IDM (self-supervised) → 0%</div>
+  <div class="row"><span class="no">✗</span> smaller latent dimension → 0%</div>
+  <div class="row"><span class="no">✗</span> SIGReg isotropy — fixes variance, not the metric → 0%</div>
+  <div class="row"><span class="ok">✓</span> the isometry loss — the latent becomes a metric → <span class="win">planning works</span></div>
+
+  <div class="res">final distance <span class="win">0.80</span> &nbsp;vs&nbsp; oracle <span class="b">0.79</span></div>
+  <div class="dim">tolerance 1.0 (start ≈ 6.6) — 100% across seeds and 4 different gLV systems.</div>
+</body>
+</html>
